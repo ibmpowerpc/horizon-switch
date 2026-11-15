@@ -17,6 +17,10 @@ struct lp_event {
     char name[17]; /* Server profile, NUL terminated; only for LOGIN_SUCCESS. */
     uint8_t session[16]; /* Java 26.3 LoginFinished session UUID. */
     uint8_t should_authenticate; /* Only for ENCRYPTION_REQUEST; 0 or 1. */
+    uint32_t public_key_offset; /* DER region in scratch, only for Hello. */
+    uint32_t public_key_length;
+    uint32_t challenge_offset;
+    uint32_t challenge_length;
 };
 /* Caller-owned, valid, aligned, non-overlapping buffers/outputs; no allocation.
  * Fixed protocol 777. Username: 1..16 ASCII letters, digits, underscore.
@@ -32,4 +36,12 @@ int32_t craftrustnx_login_start(const char *host, uint32_t host_len, uint16_t po
 int32_t craftrustnx_login_decode(const uint8_t *data, uint32_t length,
     int32_t compression_threshold, uint8_t *scratch, uint32_t scratch_capacity,
     struct lp_event *event);
+/* Encode EncryptionResponse ID 1, before the cipher switch. compression=-1
+ * writes raw frame; >=0 may write an uncompressed envelope only if body is
+ * below threshold. Otherwise LP_UNSUPPORTED (this probe never compresses sends).
+ * Ciphertexts must each be 128 or 256 bytes, matching lengths. On error written
+ * is zero and out unchanged. Caller-owned valid non-overlapping regions. */
+int32_t craftrustnx_login_key(const uint8_t *encrypted_secret, uint32_t secret_len,
+    const uint8_t *encrypted_challenge, uint32_t challenge_len,
+    int32_t compression, uint8_t *out, uint32_t capacity, uint32_t *written);
 #endif

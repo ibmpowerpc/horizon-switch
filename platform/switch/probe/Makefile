@@ -68,10 +68,18 @@ ifneq ($(strip $(LOGIN_ARCHIVE)),)
 TARGET := craftrustnx-login-probe
 BUILD := build-login
 APP_TITLE := CraftRustNX Login Info Probe
-APP_VERSION := 0.1.1
+APP_VERSION := 0.1.2
 SOURCES := source-login
 INCLUDES += ../login-probe/include
 DEFINES += -Wframe-larger-than=32768
+ifneq ($(strip $(ENCRYPTED_LOGIN)),)
+TARGET := craftrustnx-encrypted-login-probe
+BUILD := build-encrypted-login
+APP_TITLE := CraftRustNX Encrypted Login Probe
+APP_VERSION := 0.2.0
+SOURCES += ../login-probe/crypto
+DEFINES += -DCRAFTRUSTNX_ENCRYPTED_LOGIN
+endif
 endif
 #ROMFS	:=	romfs
 
@@ -91,6 +99,9 @@ ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE)),-lsysbase,)
+ifneq ($(strip $(ENCRYPTED_LOGIN)),)
+LIBS += -lmbedcrypto
+endif
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

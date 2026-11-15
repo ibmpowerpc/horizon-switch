@@ -19,6 +19,16 @@ pub const MAX_DISCONNECT_JSON: usize = 262_144;
 /// Vanilla `Str` limit, used for unbounded fields such as property values.
 pub const MAX_STRING: usize = 32_767;
 
+/// A validated region of the caller's scratch buffer, which holds the whole
+/// packet body, packet ID included.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Region {
+    /// Byte offset in the scratch buffer.
+    pub offset: u32,
+    /// Region length in bytes; every byte is inside the packet body.
+    pub length: u32,
+}
+
 /// The validated content of one clientbound login packet. Values that the C
 /// event struct cannot hold stay in the caller's scratch buffer; use
 /// [`Decoded::data_offset`] and [`Decoded::data_length`] to reach them.
@@ -27,8 +37,14 @@ pub enum Event {
     /// Packet 0: a JSON chat component, valid UTF-8, not syntax-parsed.
     Disconnect,
     /// Packet 1: the server asked for encryption. `should_authenticate` is
-    /// reported as sent; this probe stops here either way.
-    Hello { should_authenticate: bool },
+    /// reported as sent; the caller decides how to proceed. The regions are the
+    /// server's DER public key and its challenge, validated as byte arrays
+    /// inside the body and not given any size limit beyond it.
+    Hello {
+        should_authenticate: bool,
+        public_key: Region,
+        challenge: Region,
+    },
     /// Packet 2: `GameProfile` (UUID, name, properties) plus the session UUID.
     Success {
         uuid: [u8; 16],
@@ -180,7 +196,22 @@ fn parse_success(reader: &mut Reader<'_>) -> Result<Event, Error> {
     })
 }
 
+/// Read a length-prefixed byte array (`byte_array`) and report where its bytes
+/// sit. The reader consumes the `VarInt` length and then exactly that many
+/// bytes, so the region starts where the read ended minus its length; that
+/// position is a scratch offset because the body always starts at scratch 0.
+fn byte_array_region(reader: &mut Reader<'_>) -> Result<Region, Error> {
+    let bytes = reader.byte_array()?;
+    Ok(Region {
+        offset: (reader.position() - bytes.len()) as u32,
+        length: bytes.len() as u32,
+    })
+}
+
 fn parse_body(body: &[u8], consumed: usize) -> Result<Decoded, Error> {
+    // `body` is always the start of the caller's scratch, so every reader
+    // position is a scratch offset: `data_offset` and the Hello regions are
+    // relative to the whole packet body, packet ID included.
     let mut reader = Reader::new(body);
     let id = reader.varint()?;
     let data_offset = reader.position();
@@ -195,12 +226,14 @@ fn parse_body(body: &[u8], consumed: usize) -> Result<Decoded, Error> {
         // Hello: server id, public key, challenge, should-authenticate.
         1 => {
             reader.string(MAX_SERVER_ID)?;
-            reader.byte_array()?;
-            reader.byte_array()?;
+            let public_key = byte_array_region(&mut reader)?;
+            let challenge = byte_array_region(&mut reader)?;
             let should_authenticate = reader.u8()? != 0;
             finish(&reader)?;
             Event::Hello {
                 should_authenticate,
+                public_key,
+                challenge,
             }
         }
         2 => parse_success(&mut reader)?,
@@ -603,14 +636,26 @@ mod tests {
         hello.push(32);
         hello.extend_from_slice(&[0x22; 32]);
         hello.push(1);
-        let (decoded, _) = decode(&frame(&hello), -1);
+        let (decoded, scratch) = decode(&frame(&hello), -1);
         let decoded = decoded.unwrap();
+        // The regions point at the key and the challenge inside the body, which
+        // starts with the packet ID at scratch offset 0.
         assert_eq!(
             decoded.event,
             Event::Hello {
-                should_authenticate: true
+                should_authenticate: true,
+                public_key: Region {
+                    offset: 3,
+                    length: 64,
+                },
+                challenge: Region {
+                    offset: 68,
+                    length: 32,
+                },
             }
         );
+        assert_eq!(&scratch[3..67], &[0x11; 64]);
+        assert_eq!(&scratch[68..100], &[0x22; 32]);
         assert_eq!(
             (decoded.data_offset, decoded.data_length),
             (1, hello.len() - 1)
@@ -618,12 +663,23 @@ mod tests {
         let mut anonymous = hello.clone();
         let last = anonymous.len() - 1;
         anonymous[last] = 0;
+        let (decoded, scratch) = decode(&frame(&anonymous), -1);
         assert_eq!(
-            decode(&frame(&anonymous), -1).0.unwrap().event,
+            decoded.unwrap().event,
             Event::Hello {
-                should_authenticate: false
+                should_authenticate: false,
+                public_key: Region {
+                    offset: 3,
+                    length: 64,
+                },
+                challenge: Region {
+                    offset: 68,
+                    length: 32,
+                },
             }
         );
+        assert_eq!(&scratch[3..67], &[0x11; 64]);
+        assert_eq!(&scratch[68..100], &[0x22; 32]);
 
         // Set Compression: a VarInt threshold of -1 or more.
         for threshold in [-1i32, 0, 256] {

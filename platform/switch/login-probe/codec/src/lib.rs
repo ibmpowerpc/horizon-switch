@@ -3,11 +3,13 @@
 //!
 //! The crate is both the wire codec and its exact C ABI
 //! (`libcraftrustnx_login_codec.a`, `../include/login_codec.h`). It only
-//! *describes* the login exchange: it never connects, authenticates, replies,
+//! *describes* the login exchange: it never connects, authenticates, sends packets,
 //! acknowledges configuration or implements play. All buffers are caller-owned.
 //!
 //! - [`encode_login_start`] writes two complete TCP frames: the handshake
 //!   (next state 2 = login) and LoginStart (id 0, name, offline UUID v3).
+//! - [`encode_login_key`] writes EncryptionResponse (id 1) for the encrypted
+//!   secret and challenge a validated Hello asks for.
 //! - [`decode_login_frame`] parses one complete bounded server frame from the
 //!   login state, with or without the compression envelope, and validates one
 //!   structurally complete event.
@@ -27,9 +29,9 @@ pub mod wire;
 
 pub mod ffi;
 
-pub use decode::{decode_login_frame, Decoded, Event};
-pub use encode::encode_login_start;
-pub use ffi::{craftrustnx_login_decode, craftrustnx_login_start, LpEvent};
+pub use decode::{decode_login_frame, Decoded, Event, Region};
+pub use encode::{encode_login_key, encode_login_start};
+pub use ffi::{craftrustnx_login_decode, craftrustnx_login_key, craftrustnx_login_start, LpEvent};
 
 /// Protocol version this codec pins: Java 26.3.
 pub const PROTOCOL: i32 = 777;

@@ -1,9 +1,10 @@
-//! Encoding of the two client frames that open a login: the handshake with
-//! next state 2, then LoginStart with the offline-mode UUID.
+//! Encoding of the client frames of a login: the handshake with next state 2,
+//! LoginStart with the offline-mode UUID, and the EncryptionResponse that
+//! answers a validated Hello.
 
 use crate::md5::offline_uuid;
 use crate::wire::{varint_len, write_varint};
-use crate::{Error, MAX_HOST, MAX_NAME, MAX_WIRE, PROTOCOL};
+use crate::{Error, MAX_BODY, MAX_HOST, MAX_NAME, MAX_WIRE, PROTOCOL};
 
 fn valid_host(host: &[u8]) -> bool {
     // Graphic ASCII only: no spaces, no NUL, no non-ASCII host names (no IDNA
@@ -65,6 +66,71 @@ pub fn encode_login_start(
     pos += name.len();
     out[pos..pos + 16].copy_from_slice(&offline_uuid(name));
     pos += 16;
+    Ok(pos)
+}
+
+/// Ciphertext lengths the probe accepts: a 1024- or 2048-bit RSA key (`lc_` and
+/// the Hello helper reject every other DER key size). Both ciphertexts of one
+/// response always carry the length of the same key.
+const CIPHER_LENGTHS: [usize; 2] = [128, 256];
+
+/// Encode one complete EncryptionResponse frame, packet ID 1, before the cipher
+/// switch.
+///
+/// The body is `id 1`, `VarInt` secret length, the encrypted secret, `VarInt`
+/// challenge length, then the encrypted challenge. Both ciphertexts must be the
+/// same length: 128 or 256 bytes.
+///
+/// `compression` is the threshold in force. `-1` writes a raw outer frame.
+/// Otherwise the frame carries the compression envelope, and only an
+/// uncompressed body (data length 0) below the threshold is written: this probe
+/// never compresses sends, so a body at or above the threshold is
+/// [`Error::Unsupported`]. Nothing is written on any error.
+pub fn encode_login_key(
+    encrypted_secret: &[u8],
+    encrypted_challenge: &[u8],
+    compression: i32,
+    out: &mut [u8],
+) -> Result<usize, Error> {
+    if compression < -1 {
+        return Err(Error::BadArgument);
+    }
+    let cipher = encrypted_secret.len();
+    if !CIPHER_LENGTHS.contains(&cipher) || encrypted_challenge.len() != cipher {
+        return Err(Error::BadArgument);
+    }
+    let cipher = cipher as i32;
+    let body = 1 + varint_len(cipher) + cipher as usize + varint_len(cipher) + cipher as usize;
+    // A written envelope keeps the body uncompressed, so its data length is 0.
+    let frame = if compression < 0 { body } else { body + 1 };
+    if frame > MAX_BODY {
+        return Err(Error::BadArgument);
+    }
+    if compression >= 0 && body >= compression as usize {
+        return Err(Error::Unsupported);
+    }
+    let total = varint_len(frame as i32) + frame;
+    if total > MAX_WIRE {
+        return Err(Error::BadArgument);
+    }
+    if out.len() < total {
+        return Err(Error::OutputSmall);
+    }
+
+    // The capacity check above makes every write below in bounds.
+    let mut pos = write_varint(frame as i32, out)?;
+    if compression >= 0 {
+        out[pos] = 0; // Data length 0: the body below the threshold stays raw.
+        pos += 1;
+    }
+    out[pos] = 1; // EncryptionResponse packet id.
+    pos += 1;
+    pos += write_varint(cipher, &mut out[pos..])?;
+    out[pos..pos + encrypted_secret.len()].copy_from_slice(encrypted_secret);
+    pos += encrypted_secret.len();
+    pos += write_varint(cipher, &mut out[pos..])?;
+    out[pos..pos + encrypted_challenge.len()].copy_from_slice(encrypted_challenge);
+    pos += encrypted_challenge.len();
     Ok(pos)
 }
 

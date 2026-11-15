@@ -117,8 +117,11 @@ and the UI must not relabel the world as offline without that value.
 
 Only after AES + RSA + a platform RNG exist can the `false` branch be attempted: encrypt the
 secret and challenge, send the key frame, switch both directions to CFB8, keep the existing
-threshold/compression handling, decrypt residual bytes, and read on to `LoginFinished`. The `true`
-branch stays a clear auth-required result; it cannot be completed without a Microsoft session.
+threshold/compression handling, decrypt residual bytes, and read on to `LoginFinished`. For the probe, the `true`
+flag must be recorded separately from the final server decision. The user reports
+that this same LAN world accepted offline profiles through TLauncher; Horizon
+client policy alone does not prove vanilla server enforcement. An explicit offline
+encryption attempt can send no session join and observe server acceptance/refusal.
 
 ## Unresolved
 

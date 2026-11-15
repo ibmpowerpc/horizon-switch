@@ -110,3 +110,13 @@ Y — порт, L — offline-ник (по умолчанию `CraftRustNX`), A 
 соединение, не переходя к конфигурации и игровому миру. Online-аутентификация
 и шифрование не реализованы. Сборка и host-тесты прошли; аппаратная проверка
 предстоит. См. [login-probe](login-probe/README.md).
+
+## Зашифрованный offline login
+
+`bash scripts/build-switch.sh docker encrypted-login` создаёт отдельный
+`craftrustnx-encrypted-login-probe.nro`. В hbmenu это **CraftRustNX Encrypted
+Login Probe 0.2.0**. Управление X/Y/L/A/B/Plus то же. Тест выполняет RSA/AES-обмен
+без session join и показывает решение сервера. Сам флаг should_authenticate
+не считается доказательством отказа offline-профилю. Host-проверки прошли;
+SDK-криптография и LoginFinished на Switch ещё не проверены. Подробности —
+[ENCRYPTED.md](login-probe/ENCRYPTED.md).

@@ -19,7 +19,11 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+static const char *LABEL_TITLE = "CraftRustNX: Encrypted Offline Login Probe";
+#else
 static const char *LABEL_TITLE = "CraftRustNX: Java Server LOGIN Probe (Offline)";
+#endif
 static const char *LABEL_CONTROLS = "X: host | Y: port | L: name | A: connect | B: cancel | Plus: exit";
 static const char *LABEL_HOST = "Host:";
 static const char *LABEL_PORT = "Port:";
@@ -39,6 +43,7 @@ static const char *LABEL_SOCKETS_FAIL = "Sockets initialization FAILED";
 static const char *LABEL_DNS_WAIT = "DNS may block; cancellation waits for getaddrinfo.";
 static const char *LABEL_NO_CONFIG = "Diagnostic only. The Stage line shows the result. No gameplay.";
 static const char *LABEL_AUTH_FLAG = "Server should_authenticate:";
+static const char *LABEL_ENCRYPTION = "Encryption active:";
 
 static const char *stage_name(enum lj_stage stage) {
     switch (stage) {
@@ -47,6 +52,7 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_CONNECTING: return "CONNECTING";
     case LJ_SENDING: return "SENDING";
     case LJ_RECEIVING: return "RECEIVING";
+    case LJ_KEY_EXCHANGE: return "KEY_EXCHANGE";
     case LJ_ACCEPTED: return "LOGIN_ACCEPTED";
     case LJ_DISCONNECTED: return "DISCONNECTED";
     case LJ_AUTH_REQUIRED: return "AUTH_OR_ENCRYPTION_REQUIRED";
@@ -69,6 +75,7 @@ static const char *error_name(enum lj_error error) {
     case LJ_ERR_EOF: return "EOF";
     case LJ_ERR_PROTOCOL: return "PROTOCOL";
     case LJ_ERR_CLOCK: return "CLOCK";
+    case LJ_ERR_CRYPTO: return "CRYPTO";
     default: return "UNKNOWN";
     }
 }
@@ -268,6 +275,9 @@ int main(void) {
             printf("%s (Result: 0x%08" PRIx32 ")\n", LABEL_SOCKETS_FAIL, sock_init);
         printf("%s\n", LABEL_DNS_WAIT);
         printf("%s\n", LABEL_NO_CONFIG);
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+        printf("Offline attempt: no session join sent. Server decides acceptance.\n");
+#endif
         printf("\n%s\n\n", LABEL_CONTROLS);
         if (quitting || atomic_load(&job.cancel)) printf("Cancellation requested; waiting for worker (DNS may block).\n");
         if (R_FAILED(platform_error)) printf("Platform operation failed: 0x%08" PRIx32 "\n", platform_error);
@@ -283,11 +293,9 @@ int main(void) {
         printf("%s %s\x1b[K\n", LABEL_STAGE, stage_name(current_stage));
 
         if (is_terminal) {
-            if (current_stage == LJ_AUTH_REQUIRED) {
-                printf("%s %s\n", LABEL_AUTH_FLAG, job.event.should_authenticate ? "true" : "false");
-                printf("%s\n", job.event.should_authenticate
-                    ? "Server requests session authentication and encryption."
-                    : "Server requests encryption without session authentication.");
+            if (job.saw_encryption_request) {
+                printf("%s %s\n", LABEL_AUTH_FLAG, job.server_requested_auth ? "true" : "false");
+                printf("%s %s\n", LABEL_ENCRYPTION, job.encryption_active ? "yes" : "no");
             }
             printf("%s %s", LABEL_ERROR, error_name(job.error));
             if (job.error != LJ_ERR_NONE) {
@@ -297,6 +305,8 @@ int main(void) {
                     printf(" (dns: %d)", job.resolver_error);
                 if (job.codec_error != 0)
                     printf(" (codec: %" PRId32 ")", job.codec_error);
+                if (job.crypto_error != 0)
+                    printf(" (crypto: %d, detail: 0x%08x)", job.crypto_error, (unsigned)job.crypto_detail);
             }
             printf("\x1b[K\n");
 

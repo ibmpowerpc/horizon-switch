@@ -7,10 +7,10 @@
 
 enum lj_stage { LJ_IDLE, LJ_RESOLVING, LJ_CONNECTING, LJ_SENDING, LJ_RECEIVING,
     LJ_ACCEPTED, LJ_DISCONNECTED, LJ_AUTH_REQUIRED, LJ_UNSUPPORTED,
-    LJ_ERROR, LJ_CANCELLED };
+    LJ_ERROR, LJ_CANCELLED, LJ_KEY_EXCHANGE };
 enum lj_error { LJ_ERR_NONE, LJ_ERR_ARGUMENT, LJ_ERR_DNS, LJ_ERR_CONNECT,
     LJ_ERR_TIMEOUT, LJ_ERR_SEND, LJ_ERR_RECV, LJ_ERR_EOF, LJ_ERR_PROTOCOL,
-    LJ_ERR_CLOCK };
+    LJ_ERR_CLOCK, LJ_ERR_CRYPTO };
 struct lj_job {
     char host[254];
     char name[17];
@@ -21,6 +21,11 @@ struct lj_job {
     int system_error;
     int resolver_error;
     int codec_error;
+    int crypto_error;
+    int crypto_detail;
+    bool saw_encryption_request;
+    bool server_requested_auth;
+    bool encryption_active;
     int32_t compression;
     uint32_t received_bytes;
     uint32_t frame_count;

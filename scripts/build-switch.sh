@@ -30,14 +30,19 @@ case "$variant" in
     native_args=("NET_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("NET_ARCHIVE=/workspace/$archive_rel")
     ;;
-  login)
+  login|encrypted-login)
     bash "$project_dir/platform/switch/login-probe/build.sh"
     target=craftrustnx-login-probe
     archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_login_codec.a
     native_args=("LOGIN_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("LOGIN_ARCHIVE=/workspace/$archive_rel")
+    if [[ "$variant" == encrypted-login ]]; then
+      target=craftrustnx-encrypted-login-probe
+      native_args+=(ENCRYPTED_LOGIN=1)
+      docker_args+=(ENCRYPTED_LOGIN=1)
+    fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net or login.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login or encrypted-login.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -55,7 +60,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login]' >&2
     exit 2
     ;;
 esac

@@ -7,7 +7,7 @@ CraftRustNX Switch login probe. The C ABI is exactly
 source-login worker, build scripts and hardware runs live beside it.
 
 It is a diagnostic only: it *describes* the exchange. It does not connect,
-resolve names, authenticate, reply, acknowledge configuration, enter play, log
+resolve names, authenticate, send packets, acknowledge configuration, enter play, log
 or allocate. Everything is `no_std`, no floats, caller-owned buffers.
 
 ```sh
@@ -42,6 +42,29 @@ Arguments: `1..=253` graphic ASCII host bytes, non-zero port, `1..=16`
 username bytes of ASCII letters, digits and `_`. A rejected argument
 (including a bad name) returns `LP_BAD_ARGUMENT`; a too-small `out` returns
 `LP_OUTPUT_SMALL`. In both cases `*written == 0` and `out` is untouched.
+
+## `craftrustnx_login_key`
+
+Writes one complete TCP frame: `EncryptionResponse` (packet ID **1**) with the
+body `VarInt` secret length + encrypted secret + `VarInt` challenge length +
+encrypted challenge. Both ciphertexts must be the **same length, 128 or 256
+bytes** (the RSA key sizes `login_crypto.h` accepts); unequal lengths, any other
+length, a null pointer and `compression < -1` are `LP_BAD_ARGUMENT`. The frame
+carries no reply beyond this packet: the cipher switch that follows is the
+transport worker's job.
+
+`compression` is the threshold in force, exactly as `craftrustnx_login_decode`
+takes it:
+
+- `-1`: raw outer frame, `VarInt(body)` + body;
+- `>= 0`: the frame carries the envelope, and only a **data length 0** envelope
+  is written, which Vanilla accepts only when the body is *below* the
+  threshold. At or above it a real server needs a compressed send, so the call
+  returns `LP_UNSUPPORTED`: this probe never compresses what it sends and has no
+  deflate path.
+
+On every error `*written == 0` and `out` is untouched; the complete frame length
+is checked against `capacity` before anything is serialized.
 
 ## `craftrustnx_login_decode`
 
@@ -81,7 +104,7 @@ copy.
 | ID | Event | Validated fields |
 |---|---|---|
 | 0 | `LP_DISCONNECT` | one length-prefixed UTF-8 JSON string, not syntax-parsed, no trailing bytes |
-| 1 | `LP_ENCRYPTION_REQUEST` (`should_authenticate` exposed as 0/1) | server id (≤20 UTF-16 units), key byte array, challenge byte array, bool; the attempt stops here whatever the bool says |
+| 1 | `LP_ENCRYPTION_REQUEST` (`should_authenticate` exposed as 0/1, with the DER public key and challenge regions) | server id (≤20 UTF-16 units), key byte array, challenge byte array, bool; the attempt stops here whatever the bool says. `public_key_offset/length` and `challenge_offset/length` locate the two byte arrays inside `scratch` (the whole body, packet ID included); they are validated, not capped beyond the body |
 | 2 | `LP_LOGIN_SUCCESS` | profile UUID, ASCII name (1..16 letters/digits/underscore, NUL-padded into `name[17]`), properties (≤64: name ≤64, value, optional signature ≤1024), then the Java 26.3 **session UUID** |
 | 3 | `LP_SET_COMPRESSION` | threshold `VarInt >= -1` |
 | 4 | `LP_CUSTOM_QUERY` | transaction `VarInt`, channel identifier, rest of the frame |
@@ -106,8 +129,10 @@ padding included — so no stale field or padding byte can leak into a report.
 
 ### Safety contract
 
-`struct lp_event` is `#[repr(C)]` with the header's field order and size (72
-bytes, `uuid` at 20, `name` at 36, `session` at 53, `should_authenticate` at 69). Callers guarantee valid,
+`struct lp_event` is `#[repr(C)]` with the header's field order and size (88
+bytes: `uuid` at 20, `name` at 36, `session` at 53, `should_authenticate` at 69,
+`public_key_offset/length` at 72/76, `challenge_offset/length` at 80/84).
+Callers guarantee valid,
 aligned, non-overlapping buffers and correct lengths; null pointers and
 out-of-range lengths are checked *before* any slice is formed and are
 `LP_BAD_ARGUMENT`. Malformed input cannot panic: every read is bounds-checked,
@@ -123,6 +148,12 @@ points, not a re-implementation) and pin:
 
 - independent wire vectors for the request (`localhost:25565`, `Notch`,
   protocol 777) and the offline UUIDs from published MD5 vectors;
+- independent `EncryptionResponse` vectors for both 128- and 256-byte
+  ciphertexts (deterministic test bytes, not a real key), raw and envelope
+  framing, the at/above-threshold `LP_UNSUPPORTED` path, short capacity,
+  unequal lengths and null arguments, all through the C ABI;
+- a `Hello` whose key and challenge regions are sliced back out of `scratch`,
+  with `should_authenticate` checked at both 0 and 1;
 - a `LoginFinished` with a property and a session UUID, its truncation at every
   length, trailing bytes and each profile limit;
 - Python-`zlib`-generated static frames (`78 da …`), the Adler-32 trailer,

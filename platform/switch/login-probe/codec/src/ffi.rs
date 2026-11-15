@@ -11,7 +11,7 @@ use core::ffi::c_char;
 use core::{ptr, slice};
 
 use crate::decode::{decode_login_frame, Decoded, Event};
-use crate::{encode_login_start, Error, MAX_BODY, MAX_HOST, MAX_NAME, MAX_WIRE};
+use crate::{encode_login_key, encode_login_start, Error, MAX_BODY, MAX_HOST, MAX_NAME, MAX_WIRE};
 
 pub const LP_OK: i32 = 0;
 pub const LP_NEED_MORE: i32 = 1;
@@ -48,6 +48,13 @@ pub struct LpEvent {
     pub session: [u8; 16],
     /// Only for EncryptionRequest: whether a real session join is required.
     pub should_authenticate: u8,
+    /// DER public key region in the caller's scratch; only for
+    /// [`LP_ENCRYPTION_REQUEST`].
+    pub public_key_offset: u32,
+    pub public_key_length: u32,
+    /// Challenge region in the caller's scratch; only for EncryptionRequest.
+    pub challenge_offset: u32,
+    pub challenge_length: u32,
 }
 
 fn status_of(error: Error) -> i32 {
@@ -83,8 +90,14 @@ fn event_of(decoded: Decoded) -> LpEvent {
         Event::Disconnect => LP_DISCONNECT,
         Event::Hello {
             should_authenticate,
+            public_key,
+            challenge,
         } => {
             event.should_authenticate = u8::from(should_authenticate);
+            event.public_key_offset = public_key.offset;
+            event.public_key_length = public_key.length;
+            event.challenge_offset = challenge.offset;
+            event.challenge_length = challenge.length;
             LP_ENCRYPTION_REQUEST
         }
         Event::Compression { threshold } => {
@@ -167,6 +180,83 @@ pub unsafe extern "C" fn craftrustnx_login_start(
     }
 }
 
+/// Encode one complete EncryptionResponse frame (packet ID 1), before the
+/// cipher switch.
+///
+/// Both ciphertexts must be the same length, 128 or 256 bytes (the RSA key sizes
+/// the probe supports). `compression` is `-1` for a raw frame, otherwise the
+/// announced threshold: an uncompressed body (data length 0) below the threshold
+/// is written, anything else is `LP_UNSUPPORTED` because this probe never
+/// compresses sends. `*written` is set to 0 first, so every failure leaves it 0
+/// and `out` is never written. Bad arguments (including a null pointer, a
+/// length other than 128/256, unequal lengths and `compression < -1`) are
+/// `LP_BAD_ARGUMENT`; a too-small `out` is `LP_OUTPUT_SMALL`.
+///
+/// # Safety
+///
+/// The caller guarantees:
+/// - `written` is null or points to one writable, aligned `uint32_t` in
+///   caller-owned memory that does not overlap `out`;
+/// - when `secret_len` is non-zero, `encrypted_secret` points to `secret_len`
+///   readable bytes; when `challenge_len` is non-zero, `encrypted_challenge`
+///   points to `challenge_len` readable bytes; out-of-contract lengths are
+///   rejected before either pointer is dereferenced;
+/// - when `capacity` is non-zero, `out` points to `capacity` writable bytes
+///   that do not overlap either ciphertext;
+/// - every pointer stays valid and non-overlapping for the whole call.
+///
+/// Arbitrary pointer values cannot be validated; anything that breaks the
+/// above is undefined behaviour, not an error code.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)] // The C header fixes the parameter list.
+pub unsafe extern "C" fn craftrustnx_login_key(
+    encrypted_secret: *const u8,
+    secret_len: u32,
+    encrypted_challenge: *const u8,
+    challenge_len: u32,
+    compression: i32,
+    out: *mut u8,
+    capacity: u32,
+    written: *mut u32,
+) -> i32 {
+    if written.is_null() {
+        return LP_BAD_ARGUMENT;
+    }
+    // SAFETY: `written` is non-null and writable per the contract above.
+    unsafe { *written = 0 };
+
+    if compression < -1 {
+        return LP_BAD_ARGUMENT;
+    }
+    // Bound both ciphertext lengths (and reject unequal ones) before forming
+    // any slice, so a bad length never dereferences the pointers.
+    if !matches!(secret_len, 128 | 256) || challenge_len != secret_len {
+        return LP_BAD_ARGUMENT;
+    }
+    if encrypted_secret.is_null() || encrypted_challenge.is_null() || out.is_null() {
+        return LP_BAD_ARGUMENT;
+    }
+    if capacity == 0 {
+        return LP_OUTPUT_SMALL;
+    }
+
+    // SAFETY: both lengths are in range and every pointer is non-null, valid and
+    // readable/writable for exactly the given lengths per the contract above.
+    let encrypted_secret = unsafe { slice::from_raw_parts(encrypted_secret, secret_len as usize) };
+    let encrypted_challenge =
+        unsafe { slice::from_raw_parts(encrypted_challenge, challenge_len as usize) };
+    let out = unsafe { slice::from_raw_parts_mut(out, capacity as usize) };
+
+    match encode_login_key(encrypted_secret, encrypted_challenge, compression, out) {
+        Ok(len) => {
+            // SAFETY: `written` is non-null and writable per the contract.
+            unsafe { *written = len as u32 };
+            LP_OK
+        }
+        Err(error) => status_of(error),
+    }
+}
+
 /// Decode one complete clientbound login frame from `data` into `scratch` and
 /// fill `event`.
 ///
@@ -175,7 +265,10 @@ pub unsafe extern "C" fn craftrustnx_login_start(
 /// byte of `*event` is zeroed before anything else, so failures never leak
 /// stale fields. Only this frame is consumed; a following frame is left alone.
 /// `event.data_offset`/`data_length` describe the packet payload after the
-/// packet ID inside `scratch`, which holds the whole body on success.
+/// packet ID inside `scratch`, which holds the whole body on success. For
+/// `LP_ENCRYPTION_REQUEST` the `public_key_*` and `challenge_*` fields are the
+/// DER key and challenge regions of that same body; they are validated byte
+/// arrays, not capped beyond the body itself.
 ///
 /// # Safety
 ///
@@ -246,6 +339,10 @@ pub unsafe extern "C" fn craftrustnx_login_decode(
                 ptr::addr_of_mut!((*event).session).write(event_value.session);
                 ptr::addr_of_mut!((*event).should_authenticate)
                     .write(event_value.should_authenticate);
+                ptr::addr_of_mut!((*event).public_key_offset).write(event_value.public_key_offset);
+                ptr::addr_of_mut!((*event).public_key_length).write(event_value.public_key_length);
+                ptr::addr_of_mut!((*event).challenge_offset).write(event_value.challenge_offset);
+                ptr::addr_of_mut!((*event).challenge_length).write(event_value.challenge_length);
             }
             LP_OK
         }
@@ -318,6 +415,31 @@ mod tests {
         }
     }
 
+    /// Deterministic filler for a ciphertext of `len` bytes. These are test
+    /// bytes, not a real RSA key or a real PKCS#1 v1.5 ciphertext.
+    fn cipher(len: usize, seed: u8) -> Vec<u8> {
+        (0..len)
+            .map(|i| seed.wrapping_add((i as u8).wrapping_mul(7)))
+            .collect()
+    }
+
+    fn key_with(secret: &[u8], challenge: &[u8], compression: i32, out: &mut [u8]) -> (i32, u32) {
+        let mut written = u32::MAX;
+        let status = unsafe {
+            craftrustnx_login_key(
+                secret.as_ptr(),
+                secret.len() as u32,
+                challenge.as_ptr(),
+                challenge.len() as u32,
+                compression,
+                out.as_mut_ptr(),
+                out.len() as u32,
+                &mut written,
+            )
+        };
+        (status, written)
+    }
+
     fn event_bytes(event: &LpEvent) -> &[u8] {
         // SAFETY: the struct is plain data and the slice covers exactly it.
         unsafe {
@@ -356,7 +478,7 @@ mod tests {
 
     #[test]
     fn event_layout_matches_the_c_header() {
-        assert_eq!(core::mem::size_of::<LpEvent>(), 72);
+        assert_eq!(core::mem::size_of::<LpEvent>(), 88);
         assert_eq!(core::mem::offset_of!(LpEvent, kind), 0);
         assert_eq!(core::mem::offset_of!(LpEvent, consumed), 4);
         assert_eq!(core::mem::offset_of!(LpEvent, data_offset), 8);
@@ -366,6 +488,10 @@ mod tests {
         assert_eq!(core::mem::offset_of!(LpEvent, name), 36);
         assert_eq!(core::mem::offset_of!(LpEvent, session), 53);
         assert_eq!(core::mem::offset_of!(LpEvent, should_authenticate), 69);
+        assert_eq!(core::mem::offset_of!(LpEvent, public_key_offset), 72);
+        assert_eq!(core::mem::offset_of!(LpEvent, public_key_length), 76);
+        assert_eq!(core::mem::offset_of!(LpEvent, challenge_offset), 80);
+        assert_eq!(core::mem::offset_of!(LpEvent, challenge_length), 84);
         assert_eq!(core::mem::size_of::<[c_char; 17]>(), 17);
 
         // Header enum values.
@@ -498,6 +624,245 @@ mod tests {
     }
 
     #[test]
+    fn encryption_response_vectors_for_both_cipher_lengths() {
+        // Only the two RSA key sizes the probe supports, with ciphertext bytes
+        // that are deterministic test data rather than a real key.
+        for (cipher_len, body_len, total) in [(128usize, 261usize, 263usize), (256, 517, 519)] {
+            let secret = cipher(cipher_len, 0x31);
+            let challenge = cipher(cipher_len, 0x77);
+            let mut out = [0xa5u8; 600];
+            let (status, written) = key_with(&secret, &challenge, -1, &mut out);
+            assert_eq!((status, written as usize), (LP_OK, total), "{cipher_len}");
+
+            // Independent vector: outer frame length, id 1, then the two
+            // length-prefixed ciphertexts, each length in its two-byte VarInt
+            // form (128 and 256 both need two bytes).
+            let outer = if cipher_len == 128 {
+                &[0x85u8, 0x02][..]
+            } else {
+                &[0x85u8, 0x04][..]
+            };
+            let cipher_prefix = if cipher_len == 128 {
+                &[0x80u8, 0x01][..]
+            } else {
+                &[0x80u8, 0x02][..]
+            };
+            let mut expected = Vec::new();
+            expected.extend_from_slice(outer);
+            expected.push(1); // EncryptionResponse packet id
+            expected.extend_from_slice(cipher_prefix);
+            expected.extend_from_slice(&secret);
+            expected.extend_from_slice(cipher_prefix);
+            expected.extend_from_slice(&challenge);
+            assert_eq!(expected.len(), total);
+            assert_eq!(&out[..written as usize], &expected[..]);
+
+            // Body layout and the untouched byte after the frame.
+            assert_eq!(body_len, 5 + 2 * cipher_len);
+            assert_eq!(&out[2..3], &[1]);
+            assert_eq!(&out[3..5], cipher_prefix);
+            assert_eq!(&out[5..5 + cipher_len], &secret[..]);
+            assert_eq!(&out[5 + cipher_len..7 + cipher_len], cipher_prefix);
+            assert_eq!(&out[7 + cipher_len..7 + 2 * cipher_len], &challenge[..]);
+            assert_eq!(out[written as usize], 0xa5);
+        }
+    }
+
+    #[test]
+    fn encryption_response_compression_envelope_or_unsupported() {
+        for (cipher_len, body_len) in [(128usize, 261usize), (256, 517)] {
+            let secret = cipher(cipher_len, 0x31);
+            let challenge = cipher(cipher_len, 0x77);
+            // One above the body: the body stays below the threshold, so the
+            // only shape this probe can write is an uncompressed envelope.
+            let threshold = body_len as i32 + 1;
+            let mut out = [0xa5u8; 600];
+            let (status, written) = key_with(&secret, &challenge, threshold, &mut out);
+            assert_eq!(status, LP_OK, "{threshold}");
+            let wire = &out[..written as usize];
+
+            let outer = if cipher_len == 128 {
+                &[0x86u8, 0x02][..]
+            } else {
+                &[0x86u8, 0x04][..]
+            };
+            let cipher_prefix = if cipher_len == 128 {
+                &[0x80u8, 0x01][..]
+            } else {
+                &[0x80u8, 0x02][..]
+            };
+            let mut expected = Vec::new();
+            expected.extend_from_slice(outer);
+            expected.push(0); // data length 0: the body is not compressed
+            expected.push(1); // EncryptionResponse packet id
+            expected.extend_from_slice(cipher_prefix);
+            expected.extend_from_slice(&secret);
+            expected.extend_from_slice(cipher_prefix);
+            expected.extend_from_slice(&challenge);
+            assert_eq!(expected.len(), body_len + 3);
+            assert_eq!(wire, &expected[..]);
+            assert_eq!(out[written as usize], 0xa5);
+
+            // A larger threshold writes the same envelope.
+            let mut high = [0xa5u8; 600];
+            let (status, written_high) = key_with(&secret, &challenge, 4096, &mut high);
+            assert_eq!(status, LP_OK);
+            assert_eq!(&high[..written_high as usize], wire);
+
+            // At or below the body length a Vanilla server would require a
+            // compressed send, which this probe never does.
+            for threshold in [0, 1, body_len as i32 - 1, body_len as i32] {
+                let mut out = [0xa5u8; 600];
+                let (status, written) = key_with(&secret, &challenge, threshold, &mut out);
+                assert_eq!(
+                    (status, written),
+                    (LP_UNSUPPORTED, 0),
+                    "{cipher_len}/{threshold}"
+                );
+                assert_eq!(out, [0xa5u8; 600]);
+            }
+
+            // A short buffer is reported for the envelope as well.
+            let total = written as usize;
+            let mut short = [0xa5u8; 600];
+            let (status, written) =
+                key_with(&secret, &challenge, threshold, &mut short[..total - 1]);
+            assert_eq!((status, written), (LP_OUTPUT_SMALL, 0));
+            assert_eq!(short, [0xa5u8; 600]);
+        }
+    }
+
+    #[test]
+    fn encryption_response_rejects_bad_arguments_and_short_output() {
+        let secret = cipher(128, 0x31);
+        let challenge = cipher(128, 0x77);
+        let mut out = [0xa5u8; 600];
+
+        // compression must be raw (-1) or an announced threshold >= 0.
+        for compression in [-2i32, i32::MIN] {
+            let (status, written) = key_with(&secret, &challenge, compression, &mut out);
+            assert_eq!((status, written), (LP_BAD_ARGUMENT, 0), "{compression}");
+            assert_eq!(out, [0xa5u8; 600]);
+        }
+
+        // Each ciphertext is 128 or 256 bytes and both must match.
+        let bytes = cipher(600, 0x5a);
+        for (secret_len, challenge_len) in [
+            (0usize, 0usize),
+            (127, 127),
+            (129, 129),
+            (255, 255),
+            (257, 257),
+            (128, 256),
+            (256, 128),
+            (128, 0),
+            (0, 256),
+        ] {
+            let (status, written) = key_with(
+                &bytes[..secret_len],
+                &bytes[1..1 + challenge_len],
+                -1,
+                &mut out,
+            );
+            assert_eq!(
+                (status, written),
+                (LP_BAD_ARGUMENT, 0),
+                "{secret_len}/{challenge_len}"
+            );
+            assert_eq!(out, [0xa5u8; 600]);
+        }
+
+        // Null pointers, unequal lengths and a null `written` are arguments,
+        // never dereferences.
+        let status = unsafe {
+            craftrustnx_login_key(
+                secret.as_ptr(),
+                128,
+                challenge.as_ptr(),
+                128,
+                -1,
+                out.as_mut_ptr(),
+                600,
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(status, LP_BAD_ARGUMENT);
+        for (secret_ptr, challenge_ptr, out_ptr) in [
+            (ptr::null(), challenge.as_ptr(), out.as_mut_ptr()),
+            (secret.as_ptr(), ptr::null(), out.as_mut_ptr()),
+            (secret.as_ptr(), challenge.as_ptr(), ptr::null_mut()),
+        ] {
+            let mut written = 5;
+            let status = unsafe {
+                craftrustnx_login_key(
+                    secret_ptr,
+                    128,
+                    challenge_ptr,
+                    128,
+                    -1,
+                    out_ptr,
+                    600,
+                    &mut written,
+                )
+            };
+            assert_eq!(status, LP_BAD_ARGUMENT);
+            assert_eq!(written, 0);
+        }
+        assert_eq!(out, [0xa5u8; 600]);
+
+        // Bad lengths are rejected before the (one-byte) buffers are read.
+        let one = [0u8; 1];
+        for (secret_len, challenge_len) in [(128u32, 129u32), (0, 128), (1024, 1024)] {
+            let mut written = 3;
+            let status = unsafe {
+                craftrustnx_login_key(
+                    one.as_ptr(),
+                    secret_len,
+                    one.as_ptr(),
+                    challenge_len,
+                    -1,
+                    out.as_mut_ptr(),
+                    600,
+                    &mut written,
+                )
+            };
+            assert_eq!(status, LP_BAD_ARGUMENT, "{secret_len}/{challenge_len}");
+            assert_eq!(written, 0);
+        }
+
+        // Every capacity below the raw frame length is short and out keeps its
+        // bytes; exactly the frame length is enough.
+        let total = 263;
+        for capacity in 0..total {
+            let mut out = [0xa5u8; 300];
+            let (status, written) = key_with(&secret, &challenge, -1, &mut out[..capacity]);
+            assert_eq!((status, written), (LP_OUTPUT_SMALL, 0), "{capacity}");
+            assert_eq!(out, [0xa5u8; 300]);
+        }
+        let mut out = [0xa5u8; 264];
+        let (status, written) = key_with(&secret, &challenge, -1, &mut out[..total]);
+        assert_eq!((status, written as usize), (LP_OK, total));
+        assert_eq!(out[total], 0xa5);
+
+        // A zero-length region reports a short buffer rather than writing.
+        let mut written = 9;
+        let status = unsafe {
+            craftrustnx_login_key(
+                secret.as_ptr(),
+                128,
+                challenge.as_ptr(),
+                128,
+                -1,
+                out.as_mut_ptr(),
+                0,
+                &mut written,
+            )
+        };
+        assert_eq!(status, LP_OUTPUT_SMALL);
+        assert_eq!(written, 0);
+    }
+
+    #[test]
     fn decode_success_carries_profile_session_and_offsets() {
         let wire = success_frame();
         let mut scratch = [0u8; LP_MAX_BODY as usize];
@@ -536,12 +901,36 @@ mod tests {
         assert_eq!(decode_with(hello, -1, &mut scratch, &mut event), LP_OK);
         assert_eq!(event.kind, LP_ENCRYPTION_REQUEST);
         assert_eq!(event.should_authenticate, 1);
+        // The regions are the validated key and challenge inside the body
+        // (packet ID included), so the caller can hand them to the crypto step.
+        assert_eq!(
+            (
+                event.public_key_offset,
+                event.public_key_length,
+                event.challenge_offset,
+                event.challenge_length
+            ),
+            (3, 1, 5, 1)
+        );
+        assert_eq!(&scratch[3..4], &[0x02]);
+        assert_eq!(&scratch[5..6], &[0x01]);
         let hello_without_auth = b"\x07\x01\x00\x01\x02\x01\x01\x00";
         assert_eq!(
             decode_with(hello_without_auth, -1, &mut scratch, &mut event),
             LP_OK
         );
         assert_eq!(event.should_authenticate, 0);
+        assert_eq!(
+            (
+                event.public_key_offset,
+                event.public_key_length,
+                event.challenge_offset,
+                event.challenge_length
+            ),
+            (3, 1, 5, 1)
+        );
+        assert_eq!(&scratch[3..4], &[0x02]);
+        assert_eq!(&scratch[5..6], &[0x01]);
 
         let compression = b"\x03\x03\x80\x01";
         assert_eq!(
@@ -574,6 +963,10 @@ mod tests {
             name: [0x7f; 17],
             session: [0xff; 16],
             should_authenticate: 0xff,
+            public_key_offset: 0xffff_ffff,
+            public_key_length: 0xffff_ffff,
+            challenge_offset: 0xffff_ffff,
+            challenge_length: 0xffff_ffff,
         };
         // Malformed frame, invalid UTF-8, unsupported id, bad profile, bad
         // threshold and a scratch that is too small.
@@ -602,7 +995,11 @@ mod tests {
                 expected,
                 "{data:?}"
             );
-            assert_eq!(event_bytes(&event), [0u8; 72], "{data:?}");
+            assert_eq!(
+                event_bytes(&event),
+                [0u8; core::mem::size_of::<LpEvent>()],
+                "{data:?}"
+            );
         }
 
         // A scratch smaller than the body.
@@ -611,7 +1008,7 @@ mod tests {
             decode_with(DISCONNECT, -1, &mut small, &mut event),
             LP_OUTPUT_SMALL
         );
-        assert_eq!(event_bytes(&event), [0u8; 72]);
+        assert_eq!(event_bytes(&event), [0u8; core::mem::size_of::<LpEvent>()]);
         // A bad threshold and a null event.
         assert_eq!(
             decode_with(DISCONNECT, -2, &mut scratch, &mut event),
@@ -640,7 +1037,7 @@ mod tests {
                 LP_NEED_MORE,
                 "{end}"
             );
-            assert_eq!(event_bytes(&event), [0u8; 72]);
+            assert_eq!(event_bytes(&event), [0u8; core::mem::size_of::<LpEvent>()]);
         }
 
         // Empty input, and a null data pointer only when the length is zero.
@@ -680,7 +1077,7 @@ mod tests {
             )
         };
         assert_eq!(status, LP_BAD_ARGUMENT);
-        assert_eq!(event_bytes(&event), [0u8; 72]);
+        assert_eq!(event_bytes(&event), [0u8; core::mem::size_of::<LpEvent>()]);
 
         // One frame is consumed, a following frame stays in the buffer.
         let mut joined = DISCONNECT.to_vec();
@@ -703,7 +1100,7 @@ mod tests {
             decode_with(DISCONNECT, -1, &mut empty, &mut event),
             LP_OUTPUT_SMALL
         );
-        assert_eq!(event_bytes(&event), [0u8; 72]);
+        assert_eq!(event_bytes(&event), [0u8; core::mem::size_of::<LpEvent>()]);
         // Zero capacity with a valid frame still needs the whole body in scratch.
         let status = unsafe {
             craftrustnx_login_decode(

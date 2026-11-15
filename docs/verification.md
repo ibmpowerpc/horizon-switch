@@ -295,7 +295,43 @@ Error `NONE`, Compression `-1`, Frames `1`, Received `174 bytes`.
 
 Тест правильно остановился после EncryptionRequest; LoginFinished/LOGIN_ACCEPTED
 не получены. Общая настройка сервера из этого флага не устанавливается.
-Для проверки offline-профиля нужен сервер, разрешающий такой вход; обычно это
-отдельный тестовый dedicated-сервер с `online-mode=false`. Для данного запроса
-с `should_authenticate=true` потребуется реализация действительной аккаунтной сессии
-и криптографического обмена; одна поддержка RSA/AES не завершит этот путь.
+Дальнейшее поведение сервера этим флагом не установлено: probe остановился до
+ответа на запрос. Первоначальный вывод об обязательной аккаунтной сессии был
+слишком категоричным. Пользователь уточнил: тот же мир, открытый через
+«Открыть для сети», уже принимал offline-профили через TLauncher. Следующий
+диагностический этап выполнит криптографический обмен без session join и запишет
+реальное принятие либо отказ сервера. LOGIN_ACCEPTED пока не подтверждён.
+
+## Зашифрованный offline login probe 0.2.0
+
+2026-11-15 собран отдельный `craftrustnx-encrypted-login-probe.nro`, 563397 байт,
+SHA256 `67a9b8c9c1fd3c1ff274cc1f61f1d05c931dd2fb0aa38f5f2dab81e6377c9405`.
+NACP title/version: CraftRustNX Encrypted Login Probe / 0.2.0. Проверены NRO0,
+ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL; все 571 динамических RELA/RELR
+релокаций находятся в writable LOAD-сегментах.
+
+- SDK: установленная mbedTLS 2.28.10 шифрует RSA PKCS#1 v1.5; libnx CSRNG
+  генерирует секрет/паддинг с проверкой Result; libnx AES-block используется
+  общей CFB8-обёрткой. DER ограничен 1024 байт, RSA 1024/2048, challenge 1..k-11.
+  Системные исходники не менялись, загрузок/установок нет.
+- Проверены null outputs до разыменования, cleanup partial key parse, проверки
+  RSA public key/DER length, очистка секрета при любом отказе и balanced CSRNG.
+  Host OpenSSL backend использует EVP; CFB8-алгоритм общий с SDK backend.
+- 34 Rust-теста, clippy/fmt; 19 обычных TCP-регрессий; 6 CFB8-сценариев с NIST
+  vector; 13 зашифрованных TCP-фикстур. Все 13 дополнительно прошли ASan/UBSan
+  для C-кода. Это host-тесты, не выполнение SDK RNG/RSA/AES на Switch.
+- TCP-сервер independently расшифровывает RSA secret/challenge, сверяет challenge,
+  затем шифрует поток OpenSSL CFB8. Проверены flag false/true + принятие профиля,
+  RSA2048, fragmented/coalesced compressed frames, отказ сервера, checksum,
+  повторный Hello, partial EOF, отмена после Key, malformed/trailing DER,
+  RSA512 и слишком длинный challenge. Синтетические ключи создаются только в
+  ignored временном каталоге и удаляются после теста.
+- EncryptionResponse отправляется plaintext; после завершения send включается
+  RX AES. Остаток буфера расшифровывается один раз, каждый следующий recv — только
+  по новым байтам. Лимит 16 событий, body 64 KiB и исходный deadline сохраняются.
+- Флаг should_authenticate записывается отдельно от результата. В этом offline
+  диагностическом режиме session join не отправляется: принятие/отказ определяет
+  сервер. LOGIN_ACCEPTED по-прежнему завершает тест до configuration/play.
+- Все артефакты около 466 МиБ из 512; свободно около 16 GiB, резерв 10 GiB.
+  Ранее переданные NRO сохранены отдельно. SDK-криптография и реальный
+  зашифрованный LoginFinished на Switch пока не проверены.

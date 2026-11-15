@@ -7,8 +7,8 @@
  * parse ALREADY buffered frames immediately before recv (coalescing!). Threshold
  * -1 disable supported. LP_NEED_MORE recv only if room; malformed/overflow fail.
  * On validated LOGIN_SUCCESS terminal LJ_ACCEPTED; DISCONNECT LJ_DISCONNECTED;
- * ENCRYPTION_REQUEST LJ_AUTH_REQUIRED (even should_authenticate=false needs
- * unsupported encryption; no bypass); Query/Cookie LJ_UNSUPPORTED. Copy event,
+ * ENCRYPTION_REQUEST stops in the info variant; encrypted variant replies with
+ * RSA and continues through AES without a session join. Query/Cookie LJ_UNSUPPORTED. Copy event,
  * retain scratch for display, close all resources BEFORE terminal release. No
  * LoginAcknowledged. Offline vanilla normally SKIPS encryption request (not
  * empty keys false); distinct default name avoids disrupting host player.
@@ -17,6 +17,9 @@
  */
 #include "login_probe.h"
 #include "login_codec.h"
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+#include "login_crypto.h"
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -87,8 +90,98 @@ static int wait_socket(struct lj_job *job, int fd, bool for_write, uint64_t dead
     return is_cancelled(job) ? -1 : 0;
 }
 
+struct cipher_state {
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+    struct lc_session *session;
+#else
+    int unused;
+#endif
+};
+static void close_connection(int fd, struct cipher_state *cipher) {
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+    lc_session_free(cipher->session);
+    cipher->session = NULL;
+#else
+    (void)cipher;
+#endif
+    close(fd);
+}
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+/* Key is the final plaintext packet. The caller activates stream decryption
+ * only after this write completes; server authentication policy is not guessed
+ * from should_authenticate. This offline probe sends no session-service join. */
+static int exchange_key(struct lj_job *job, int fd, struct cipher_state *cipher, uint64_t deadline) {
+    const struct lp_event *event = &job->event;
+    if (cipher->session || event->public_key_offset > LP_MAX_BODY ||
+        event->public_key_length > LP_MAX_BODY - event->public_key_offset ||
+        event->challenge_offset > LP_MAX_BODY ||
+        event->challenge_length > LP_MAX_BODY - event->challenge_offset)
+        return LJ_ERR_PROTOCOL;
+    uint8_t encrypted_secret[LC_MAX_KEY_BYTES], encrypted_challenge[LC_MAX_KEY_BYTES];
+    uint32_t cipher_length = 0;
+    job->crypto_error = lc_session_create(job->scratch + event->public_key_offset,
+        event->public_key_length, job->scratch + event->challenge_offset,
+        event->challenge_length, encrypted_secret, encrypted_challenge,
+        &cipher_length, &cipher->session, &job->crypto_detail);
+    if (job->crypto_error != LC_OK) return LJ_ERR_CRYPTO;
+    uint8_t response[1024];
+    uint32_t written = 0;
+    job->codec_error = craftrustnx_login_key(encrypted_secret, cipher_length,
+        encrypted_challenge, cipher_length, job->compression, response, sizeof(response), &written);
+    if (job->codec_error != LP_OK || !written || written > sizeof(response)) return LJ_ERR_PROTOCOL;
+    uint32_t sent = 0;
+    while (sent < written) {
+        if (is_cancelled(job)) return -1;
+        if (!time_left(deadline)) return LJ_ERR_TIMEOUT;
+        const ssize_t count = send(fd, response + sent, written - sent,
+#ifdef MSG_NOSIGNAL
+            MSG_NOSIGNAL
+#else
+            0
+#endif
+        );
+        if (count < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                int ready = wait_socket(job, fd, true, deadline);
+                if (ready > 0) continue;
+                if (is_cancelled(job)) return -1;
+                if (!ready) return LJ_ERR_TIMEOUT;
+            }
+            job->system_error = errno;
+            return LJ_ERR_SEND;
+        }
+        if (!count) return LJ_ERR_SEND;
+        sent += (uint32_t)count;
+    }
+    job->encryption_active = true;
+    return LJ_ERR_NONE;
+}
+#endif
+
 void lj_run(struct lj_job *job) {
     if (job == NULL) return;
+
+    struct cipher_state cipher = {0};
+
+    // Reset result fields before starting.
+    job->error = LJ_ERR_NONE;
+    job->system_error = 0;
+    job->resolver_error = 0;
+    job->codec_error = 0;
+    job->crypto_error = 0;
+    job->crypto_detail = 0;
+    job->saw_encryption_request = false;
+    job->server_requested_auth = false;
+    job->encryption_active = false;
+    job->compression = -1;
+    job->received_bytes = 0;
+    job->frame_count = 0;
+    memset(&job->event, 0, sizeof(job->event));
+    memset(job->wire, 0, sizeof(job->wire));
+    memset(job->scratch, 0, sizeof(job->scratch));
+    set_stage(job, LJ_IDLE);
+
 
     // Validate inputs.
     const size_t host_len = strnlen(job->host, sizeof(job->host));
@@ -110,19 +203,6 @@ void lj_run(struct lj_job *job) {
             return;
         }
     }
-
-    // Reset result fields before starting.
-    job->error = LJ_ERR_NONE;
-    job->system_error = 0;
-    job->resolver_error = 0;
-    job->codec_error = 0;
-    job->compression = -1;
-    job->received_bytes = 0;
-    job->frame_count = 0;
-    memset(&job->event, 0, sizeof(job->event));
-    memset(job->wire, 0, sizeof(job->wire));
-    memset(job->scratch, 0, sizeof(job->scratch));
-    set_stage(job, LJ_IDLE);
 
     // Establish 10-second deadline AFTER DNS resolution (DNS may block).
     // Cancellation waits for getaddrinfo; no safe way to interrupt it.
@@ -210,7 +290,7 @@ void lj_run(struct lj_job *job) {
 
     if (sock >= FD_SETSIZE || set_nonblocking(sock) < 0) {
         const int saved_errno = sock >= FD_SETSIZE ? EMFILE : errno;
-        close(sock);
+        close_connection(sock, &cipher);
         freeaddrinfo(result);
         job->error = LJ_ERR_CONNECT;
         job->system_error = saved_errno;
@@ -222,7 +302,7 @@ void lj_run(struct lj_job *job) {
     int no_sigpipe = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe)) < 0) {
         const int saved_errno = errno;
-        close(sock);
+        close_connection(sock, &cipher);
         freeaddrinfo(result);
         job->error = LJ_ERR_CONNECT;
         job->system_error = saved_errno;
@@ -237,7 +317,7 @@ void lj_run(struct lj_job *job) {
     freeaddrinfo(result);
     result = NULL;
     if (conn_ret < 0 && conn_errno != EINPROGRESS) {
-        close(sock);
+        close_connection(sock, &cipher);
         job->error = LJ_ERR_CONNECT;
         job->system_error = conn_errno;
         set_stage(job, LJ_ERROR);
@@ -249,7 +329,7 @@ void lj_run(struct lj_job *job) {
         const int wait_result = wait_socket(job, sock, true, deadline);
         if (wait_result <= 0) {
             const int saved_errno = errno;
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = is_cancelled(job) ? LJ_ERR_NONE : (wait_result == 0 ? LJ_ERR_TIMEOUT : LJ_ERR_CONNECT);
             job->system_error = wait_result < 0 && !is_cancelled(job) ? saved_errno : 0;
             set_stage(job, is_cancelled(job) ? LJ_CANCELLED : LJ_ERROR);
@@ -260,7 +340,7 @@ void lj_run(struct lj_job *job) {
         socklen_t len = sizeof(so_error);
         if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len) < 0 || so_error != 0) {
             const int saved_errno = errno;
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_CONNECT;
             job->system_error = so_error != 0 ? so_error : saved_errno;
             set_stage(job, LJ_ERROR);
@@ -269,7 +349,7 @@ void lj_run(struct lj_job *job) {
     }
 
     if (is_cancelled(job)) {
-        close(sock);
+        close_connection(sock, &cipher);
         set_stage(job, LJ_CANCELLED);
         return;
     }
@@ -279,12 +359,12 @@ void lj_run(struct lj_job *job) {
     uint32_t sent = 0;
     while (sent < written) {
         if (is_cancelled(job)) {
-            close(sock);
+            close_connection(sock, &cipher);
             set_stage(job, LJ_CANCELLED);
             return;
         }
         if (time_left(deadline) == 0) {
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_TIMEOUT;
             set_stage(job, LJ_ERROR);
             return;
@@ -302,7 +382,7 @@ void lj_run(struct lj_job *job) {
                 const int wait_result = wait_socket(job, sock, true, deadline);
                 if (wait_result <= 0) {
                     const int saved_errno = errno;
-                    close(sock);
+                    close_connection(sock, &cipher);
                     job->error = is_cancelled(job) ? LJ_ERR_NONE : (wait_result == 0 ? LJ_ERR_TIMEOUT : LJ_ERR_SEND);
                     job->system_error = wait_result < 0 && !is_cancelled(job) ? saved_errno : 0;
                     set_stage(job, is_cancelled(job) ? LJ_CANCELLED : LJ_ERROR);
@@ -311,14 +391,14 @@ void lj_run(struct lj_job *job) {
                 continue;
             }
             const int saved_errno = errno;
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_SEND;
             job->system_error = saved_errno;
             set_stage(job, LJ_ERROR);
             return;
         }
         if (n == 0) {
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_SEND;
             set_stage(job, LJ_ERROR);
             return;
@@ -327,7 +407,7 @@ void lj_run(struct lj_job *job) {
     }
 
     if (is_cancelled(job)) {
-        close(sock);
+        close_connection(sock, &cipher);
         set_stage(job, LJ_CANCELLED);
         return;
     }
@@ -345,7 +425,7 @@ void lj_run(struct lj_job *job) {
         while (buffered > 0 && job->frame_count < max_events) {
             if (is_cancelled(job) || time_left(deadline) == 0) {
                 const bool cancelled = is_cancelled(job);
-                close(sock);
+                close_connection(sock, &cipher);
                 job->error = cancelled ? LJ_ERR_NONE : LJ_ERR_TIMEOUT;
                 set_stage(job, cancelled ? LJ_CANCELLED : LJ_ERROR);
                 return;
@@ -361,7 +441,7 @@ void lj_run(struct lj_job *job) {
 
                 // Consume the frame.
                 if (event.consumed == 0 || event.consumed > buffered) {
-                    close(sock);
+                    close_connection(sock, &cipher);
                     job->error = LJ_ERR_PROTOCOL;
                     set_stage(job, LJ_ERROR);
                     return;
@@ -375,19 +455,44 @@ void lj_run(struct lj_job *job) {
                     // Continue immediately to parse already buffered frames with new compression.
                     continue;
                 } else if (event.kind == LP_LOGIN_SUCCESS) {
-                    close(sock);
+                    close_connection(sock, &cipher);
                     set_stage(job, LJ_ACCEPTED);
                     return;
                 } else if (event.kind == LP_DISCONNECT) {
-                    close(sock);
+                    close_connection(sock, &cipher);
                     set_stage(job, LJ_DISCONNECTED);
                     return;
                 } else if (event.kind == LP_ENCRYPTION_REQUEST) {
-                    close(sock);
+                    job->saw_encryption_request = true;
+                    job->server_requested_auth = event.should_authenticate != 0;
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+                    set_stage(job, LJ_KEY_EXCHANGE);
+                    const int error = exchange_key(job, sock, &cipher, deadline);
+                    if (error != LJ_ERR_NONE) {
+                        close_connection(sock, &cipher);
+                        job->error = error < 0 ? LJ_ERR_NONE : error;
+                        set_stage(job, error < 0 ? LJ_CANCELLED :
+                            job->codec_error == LP_UNSUPPORTED ? LJ_UNSUPPORTED : LJ_ERROR);
+                        return;
+                    }
+                    // Any residual bytes are at receive-stream position zero.
+                    // They are decrypted exactly once; future recv decrypts only new bytes.
+                    job->crypto_error = lc_session_decrypt(cipher.session, recv_buf, buffered);
+                    if (job->crypto_error != LC_OK) {
+                        close_connection(sock, &cipher);
+                        job->error = LJ_ERR_CRYPTO;
+                        set_stage(job, LJ_ERROR);
+                        return;
+                    }
+                    set_stage(job, LJ_RECEIVING);
+                    continue;
+#else
+                    close_connection(sock, &cipher);
                     set_stage(job, LJ_AUTH_REQUIRED);
                     return;
+#endif
                 } else if (event.kind == LP_CUSTOM_QUERY || event.kind == LP_COOKIE_REQUEST) {
-                    close(sock);
+                    close_connection(sock, &cipher);
                     set_stage(job, LJ_UNSUPPORTED);
                     return;
                 }
@@ -396,7 +501,7 @@ void lj_run(struct lj_job *job) {
                 break;
             } else {
                 // Malformed or overflow.
-                close(sock);
+                close_connection(sock, &cipher);
                 if (decode_status == LP_UNSUPPORTED) {
                     job->codec_error = decode_status;
                     set_stage(job, LJ_UNSUPPORTED);
@@ -412,12 +517,12 @@ void lj_run(struct lj_job *job) {
 
         // Check cancellation and timeout before recv.
         if (is_cancelled(job)) {
-            close(sock);
+            close_connection(sock, &cipher);
             set_stage(job, LJ_CANCELLED);
             return;
         }
         if (time_left(deadline) == 0) {
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_TIMEOUT;
             set_stage(job, LJ_ERROR);
             return;
@@ -425,7 +530,7 @@ void lj_run(struct lj_job *job) {
 
         // LP_NEED_MORE recv only if room.
         if (buffered >= LP_MAX_WIRE) {
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_PROTOCOL;
             set_stage(job, LJ_ERROR);
             return;
@@ -435,7 +540,7 @@ void lj_run(struct lj_job *job) {
         const int wait_result = wait_socket(job, sock, false, deadline);
         if (wait_result <= 0) {
             const int saved_errno = errno;
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = is_cancelled(job) ? LJ_ERR_NONE : (wait_result == 0 ? LJ_ERR_TIMEOUT : LJ_ERR_RECV);
             job->system_error = wait_result < 0 && !is_cancelled(job) ? saved_errno : 0;
             set_stage(job, is_cancelled(job) ? LJ_CANCELLED : LJ_ERROR);
@@ -447,24 +552,35 @@ void lj_run(struct lj_job *job) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
                 continue;
             const int saved_errno = errno;
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_RECV;
             job->system_error = saved_errno;
             set_stage(job, LJ_ERROR);
             return;
         }
         if (n == 0) {
-            close(sock);
+            close_connection(sock, &cipher);
             job->error = LJ_ERR_EOF;
             set_stage(job, LJ_ERROR);
             return;
         }
+#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+        if (job->encryption_active) {
+            job->crypto_error = lc_session_decrypt(cipher.session, recv_buf + buffered, (uint32_t)n);
+            if (job->crypto_error != LC_OK) {
+                close_connection(sock, &cipher);
+                job->error = LJ_ERR_CRYPTO;
+                set_stage(job, LJ_ERROR);
+                return;
+            }
+        }
+#endif
         buffered += (uint32_t)n;
         job->received_bytes += (uint32_t)n;
     }
 
     // Received max events without terminal event.
-    close(sock);
+    close_connection(sock, &cipher);
     job->error = LJ_ERR_PROTOCOL;
     set_stage(job, LJ_ERROR);
 }
