@@ -31,7 +31,9 @@ for status: this is neither offline login nor a gameplay compatibility test.
 The 10-second deadline covers connect/send/receive after DNS. DNS can block, and
 cancellation/exit must wait for it. IPv4 only, first resolved address only, no
 SRV/IDNA, retries or latency ping. This tests native sockets, not `std::net`.
-Hardware execution and live Java-server compatibility still require verification.
+The user confirmed `DONE` with recognizable server text on Switch Lite.
+The exact server version and connection route have not yet been recorded;
+this does not verify login, gameplay, or compatibility with other servers.
 
 ## Host verification
 
