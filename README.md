@@ -8,8 +8,9 @@ Target: **Atmosphère / hbmenu**, native `.nro`.
 **Early development: the Minecraft game client does not run on Switch yet.**
 Hardware input and a C/Rust ABI probe have been tested on a real Switch Lite
 (2000 checks, zero errors). A project-local libc layout patch passes the
-compile-only ABI audit. Rust std now builds and links into an isolated runtime
-probe; its checks have not run on Switch yet. Graphics, sound and multiplayer
+compile-only ABI audit. All six checks in the isolated Rust std runtime probe
+passed on Switch Lite: allocation, time, main-thread TLS, thread spawn/join,
+mutex/condition-variable synchronization and worker TLS destructors. Graphics, sound and multiplayer
 on Switch remain to be implemented and tested.
 
 - [Build and run the Switch probes](platform/switch/README.md)

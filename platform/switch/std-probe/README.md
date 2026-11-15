@@ -1,7 +1,9 @@
 # Switch Rust std runtime probe
 
 An isolated Rust 1.100.0 `std` static library linked into a C/libnx `.nro`.
-The offline build and link succeed. **The std checks have not run on Switch yet.**
+The offline build and link succeed. **All six checks passed on the user's Switch Lite
+on 2026-11-15:** allocation, time, main-thread TLS, thread spawn/join,
+mutex/condition-variable synchronization and worker TLS destructors.
 Earlier hardware input and `no_std` ABI tests passed on the user's Switch Lite.
 
 From the repository root:

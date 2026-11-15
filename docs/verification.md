@@ -125,8 +125,8 @@ errors остаётся 0 при движении стиков/нажатиях 
   в C и Rust. Основная pthread-реализация взята из libsysbase, без подмен.
 - Артефакт: dist/switch/craftrustnx/craftrustnx-std-probe.nro, 506053 байт.
   SHA256: `7f9c0400bce1fed8fc7f54cbe976f799171e27117568ffed7b6b73219283f978`. Проверены NRO0 и ELF64 AArch64 DYN.
-- Host-тест логики std-probe прошёл, clippy без warnings. Это не проверка runtime
-  на Switch. Аппаратный запуск std-probe и любая работа с файлами/сетью ожидаются.
+- Host-тест логики std-probe прошёл, clippy без warnings. Сам по себе он не проверяет
+  runtime на Switch; последующий аппаратный результат записан ниже. Работа с файлами/сетью ещё не проверялась.
 - Кодек status ping проверен по независимым wire vectors: handshake + status-request
   имеют отдельные length prefixes, server status response id=0 (id=1 — pong).
   Семь групп тестов проходят, включая 65536 коротких входов; clippy без warnings.
@@ -135,3 +135,16 @@ errors остаётся 0 при движении стиков/нажатиях 
   core восстановился offline, NRO собрался. Восстановлен один нужный кеш core
   (shared target теперь около 151 МиБ вместо 23); общий эксперимент остаётся
   ниже 512 МиБ. Удаление кешей не лишило предыдущий тест возможности пересборки.
+- std-probe передан через DBI/MTP в `sdmc:/switch/craftrustnx/craftrustnx-std-probe.nro`.
+  Выполнено обратное чтение: побайтовое совпадение, 506053 байт, SHA256 совпадает
+  с записью выше. Предыдущие тесты на SD не заменялись. Аппаратный результат ALLOC
+  подтверждён пользователем, как и остальные пять проверок ниже.
+
+## Аппаратный результат std-probe на Switch Lite
+
+Пользователь последовательно сообщил PASS для всех шести выбранных проверок:
+ALLOC (Vec/String), TIME, TLS main thread, THREAD spawn/join,
+SYNC mutex/condition и TLS worker destructor. Таким образом, базовые функции
+этой конфигурации std/libc/libnx подтверждены на реальной Switch Lite.
+Это не полная проверка std: файлы, сеть, случайность, длительная стабильность
+и игровой движок Horizon ещё не тестировались.
