@@ -39,6 +39,7 @@
 # CraftRustNX Switch port
 /platform/switch/probe/build/
 /platform/switch/probe/build-rust/
+/platform/switch/probe/build-std/
 /platform/switch/rust-probe/target/
 /platform/switch/probe/*.elf
 /platform/switch/probe/*.nacp

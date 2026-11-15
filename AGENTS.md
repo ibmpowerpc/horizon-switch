@@ -283,9 +283,10 @@ before it threatens that reserve and report what needs space.
 Reuse the existing `devkitpro/devkita64:20260219` Docker image. Avoid additional
 toolchain images, duplicate source trees, full upstream history, and simultaneous
 Rust debug/release builds. Estimate space before cloning Horizon or building its
-client. Current scope is the small C/libnx hardware probe and an offline-built
-Rust `no_std` static-library experiment using the already installed compiler
-and matching rust-src. Keep that experiment's build artifacts under 512 MiB;
+client. Current scope is standalone C/libnx hardware probes, offline Rust
+`no_std` and isolated `std` runtime probes, and the status-ping codec, using the
+already installed compiler and matching rust-src. Full Horizon builds remain
+outside the current stage. Keep all experiment build artifacts under 512 MiB;
 do not install toolchains or fetch dependencies automatically.
 
 Clean only artifacts created for this task when they are no longer needed.

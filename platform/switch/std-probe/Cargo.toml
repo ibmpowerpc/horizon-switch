@@ -1,0 +1,34 @@
+[package]
+name = "craftrustnx-std-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Compile-only std runtime probe for the native Nintendo Switch (Atmosphere/homebrew) Horizon port. Target code is never executed by this crate's tooling."
+
+[lib]
+name = "craftrustnx_std_probe"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+# Used only by the `patched-libc` compile-time assertions, which fail the build
+# unless the *patched* libc layout is the one std itself is compiled against.
+# The checks in `src/lib.rs` never call libc directly.
+libc = { version = "=0.2.189", default-features = false, optional = true }
+
+[features]
+default = []
+# Enables the ABI assertions; pair with the patch below and `--features patched-libc`.
+patched-libc = ["dep:libc"]
+
+[profile.release]
+# The Switch target spec is panic-strategy=abort, and a staticlib that is
+# archived without an unwinder must not carry unwind tables.
+panic = "abort"
+debug = 0
+lto = false
+codegen-units = 1
+incremental = false
+
+# Standalone experiment: never resolve the Horizon workspace.
+[workspace]

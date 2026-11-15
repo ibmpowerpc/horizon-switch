@@ -1,0 +1,16 @@
+# Build artifacts
+target/
+Cargo.lock
+
+# Profiling output
+*.hzperf
+coverage/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated files
+src/lib.rs.bak

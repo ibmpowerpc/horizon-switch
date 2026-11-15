@@ -49,6 +49,12 @@ APP_TITLE := CraftRustNX Rust Probe
 DEFINES += -DCRAFTRUSTNX_RUST_PROBE
 endif
 SOURCES		:=	source
+ifneq ($(strip $(STD_ARCHIVE)),)
+TARGET := craftrustnx-std-probe
+BUILD := build-std
+APP_TITLE := CraftRustNX std Probe
+SOURCES := source-std
+endif
 DATA		:=	data
 INCLUDES	:=	include
 #ROMFS	:=	romfs
@@ -68,7 +74,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= $(RUST_ARCHIVE) -lnx
+LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE)),-lsysbase,)
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -212,7 +218,7 @@ $(OUTPUT).nso	:	$(OUTPUT).elf
 
 endif
 
-$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE)
+$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
 
