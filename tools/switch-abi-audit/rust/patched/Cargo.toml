@@ -1,0 +1,40 @@
+# Patched-verification build of the Rust ABI probe.
+#
+# Same measurement source (src/lib.rs), same profile, same rustflags and the
+# same CARGO_TARGET_DIR as the unpatched probe in the parent directory, so the
+# `-Z build-std=core` artifacts are reused instead of rebuilt.
+#
+# The only difference is the libc dependency: it points at the staged copy that
+# patches/libc-switch/apply.sh produces from the offline registry source.
+# Cargo.lock for this crate is generated offline on first use.
+[package]
+name = "switch-abi-probe-rust-patched"
+version = "0.1.0"
+edition = "2021"
+publish = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+# Distinct name so the staticlib does not overwrite the unpatched one in the
+# shared target directory.
+name = "switch_abi_probe_rust_patched"
+path = "../src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = { path = "../build/patched/libc-0.2.189", default-features = false }
+
+[features]
+patched-libc = []
+
+[profile.release]
+panic = "abort"
+debug = 0
+lto = false
+codegen-units = 1
+
+# Standalone Switch experiment; do not resolve the Horizon workspace.
+[workspace]

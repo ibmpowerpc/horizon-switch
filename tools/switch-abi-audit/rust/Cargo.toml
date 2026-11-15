@@ -1,0 +1,31 @@
+[package]
+name = "switch-abi-probe-rust"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "switch_abi_probe_rust"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = { version = "=0.2.189", default-features = false }
+
+[features]
+# Measure the six C fields that only exist in the locally patched libc
+# (patches/libc-switch/). Off by default: the baseline comparison must stay
+# against the unmodified registry source. Enabling it does not change the
+# record count or order, only whether those six records are offsets or
+# explicitly unmeasured. It is a feature rather than a RUSTFLAGS cfg so that
+# the shared target dir fingerprints (and build-std=core) stay reusable.
+patched-libc = []
+
+[profile.release]
+panic = "abort"
+debug = 0
+lto = false
+codegen-units = 1
+
+# Standalone Switch experiment; do not resolve the Horizon workspace.
+[workspace]

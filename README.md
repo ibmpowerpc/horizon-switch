@@ -1,3 +1,33 @@
+# CraftRustNX — Horizon for Nintendo Switch
+
+Experimental native port of [Horizon](https://github.com/horizon-rust/horizon)
+for the original Nintendo Switch family, primarily **Switch Lite**.
+The Switch port is the main purpose of this fork and is developed on **main**.
+Target: **Atmosphère / hbmenu**, native `.nro`.
+
+**Early development: the Minecraft game client does not run on Switch yet.**
+Hardware input and a C/Rust ABI probe have been tested on a real Switch Lite
+(2000 checks, zero errors). A project-local libc layout patch passes the
+compile-only ABI audit. Full Rust std, graphics, sound and multiplayer on Switch
+remain to be implemented and tested.
+
+- [Build and run the Switch probes](platform/switch/README.md)
+- [Switch port roadmap](docs/switch-port.md)
+- [Runtime investigation](docs/rust-runtime.md) and [verification](docs/verification.md)
+- [Legacy4J-style UI requirements](docs/console-ui.md)
+
+Goals include compatible Minecraft Java servers, offline profiles where the server
+allows them, and a native console-style UI based on Legacy4J. Vanilla-server
+compatibility takes priority over UI features. No Legacy4J code or assets have
+been imported. No Minecraft game files or assets are distributed here.
+
+Upstream source and its MIT license are preserved. Local upstream relationship:
+`upstream` = `horizon-rust/horizon`, `origin` = `ibmpowerpc/horizon-switch`.
+
+---
+
+## Upstream Horizon
+
 <p align="center">
   <img src="docs/media/banner.webp" alt="Horizon: the game you know, rebuilt in Rust" width="100%">
 </p>

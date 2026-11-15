@@ -1,0 +1,235 @@
+diff -ruN a/src/unix/newlib/horizon/mod.rs b/src/unix/newlib/horizon/mod.rs
+--- a/src/unix/newlib/horizon/mod.rs	2026-11-15 15:48:24
++++ b/src/unix/newlib/horizon/mod.rs	2026-11-15 15:49:23
+@@ -34,16 +34,50 @@
+         pub revents: c_int,
+     }
+ 
++    // Nintendo Switch (aarch64 libnx): BSD-style length+family prefix, as in
++    // libnx <sys/socket.h>, <sys/_sockaddr_storage.h> and <netinet/in.h>.
++    // Guarded so the Nintendo3DS (target_arch = "arm") definitions below are
++    // untouched.
++    #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))]
+     pub struct sockaddr {
++        pub sa_len: c_uchar,
+         pub sa_family: crate::sa_family_t,
++        pub sa_data: [c_char; 14usize],
++    }
++
++    #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))]
++    pub struct sockaddr_storage {
++        pub ss_len: c_uchar,
++        pub ss_family: crate::sa_family_t,
++        // Padding fields are public so the ABI audit can measure the C field
++        // offsets; they are not intended for direct use.
++        pub __ss_pad1: [c_char; 6usize],
++        pub __ss_align: i64,
++        pub __ss_pad2: [c_char; 112usize],
++    }
++
++    #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))]
++    pub struct sockaddr_in {
++        pub sin_len: c_uchar,
++        pub sin_family: crate::sa_family_t,
++        pub sin_port: crate::in_port_t,
++        pub sin_addr: crate::in_addr,
++        pub sin_zero: [c_char; 8usize],
++    }
++
++    #[cfg(not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib")))]
++    pub struct sockaddr {
++        pub sa_family: crate::sa_family_t,
+         pub sa_data: [c_char; 26usize],
+     }
+ 
++    #[cfg(not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib")))]
+     pub struct sockaddr_storage {
+         pub ss_family: crate::sa_family_t,
+         __ss_padding: Padding<[c_char; 26usize]>,
+     }
+ 
++    #[cfg(not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib")))]
+     pub struct sockaddr_in {
+         pub sin_family: crate::sa_family_t,
+         pub sin_port: crate::in_port_t,
+diff -ruN a/src/unix/newlib/mod.rs b/src/unix/newlib/mod.rs
+--- a/src/unix/newlib/mod.rs	2026-11-15 15:48:24
++++ b/src/unix/newlib/mod.rs	2026-11-15 15:54:21
+@@ -1,7 +1,16 @@
+ use crate::prelude::*;
+ 
+-pub type blkcnt_t = i32;
+-pub type blksize_t = i32;
++cfg_if! {
++    if #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))] {
++        // aarch64-none-elf newlib: <sys/_types.h> defaults, no machine
++        // override. Verified against devkitA64 headers (long is 64-bit).
++        pub type blkcnt_t = c_long;
++        pub type blksize_t = c_long;
++    } else {
++        pub type blkcnt_t = i32;
++        pub type blksize_t = i32;
++    }
++}
+ 
+ pub type clockid_t = c_ulong;
+ 
+@@ -14,6 +23,11 @@
+         pub type dev_t = c_short;
+         pub type ino_t = c_ushort;
+         pub type off_t = c_int;
++    } else if #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))] {
++        // Switch libnx/newlib uses the short dev_t/ino_t defaults.
++        pub type dev_t = c_short;
++        pub type ino_t = c_ushort;
++        pub type off_t = i64;
+     } else {
+         pub type dev_t = u32;
+         pub type ino_t = u32;
+@@ -34,7 +48,11 @@
+ pub type rlim_t = u32;
+ 
+ cfg_if! {
+-    if #[cfg(target_os = "horizon")] {
++    if #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))] {
++        // Switch (libnx <sys/_types.h>): __sa_family_t is __uint8_t.
++        pub type sa_family_t = u8;
++    } else if #[cfg(target_os = "horizon")] {
++        // 3DS keeps the 16-bit family. Do not touch: Nintendo3DS definitions.
+         pub type sa_family_t = u16;
+     } else {
+         pub type sa_family_t = u8;
+@@ -222,6 +240,10 @@
+         bits: [u32; 32],
+     }
+ 
++    #[cfg_attr(
++        all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"),
++        repr(align(8))
++    )]
+     pub struct pthread_attr_t {
+         // Unverified
+         #[cfg(not(target_os = "espidf"))]
+@@ -257,12 +279,19 @@
+         repr(align(4))
+     )]
+     #[cfg_attr(
+-        any(
+-            target_pointer_width = "64",
+-            not(any(target_arch = "mips", target_arch = "arm", target_arch = "powerpc"))
++        all(
++            any(
++                target_pointer_width = "64",
++                not(any(target_arch = "mips", target_arch = "arm", target_arch = "powerpc"))
++            ),
++            not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))
+         ),
+         repr(align(8))
+     )]
++    #[cfg_attr(
++        all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"),
++        repr(align(4))
++    )]
+     pub struct pthread_mutex_t {
+         // Unverified
+         size: [u8; crate::__SIZEOF_PTHREAD_MUTEX_T],
+@@ -299,16 +328,23 @@
+         repr(align(4))
+     )]
+     #[cfg_attr(
+-        not(any(
+-            target_pointer_width = "32",
+-            target_arch = "x86_64",
+-            target_arch = "powerpc64",
+-            target_arch = "mips64",
+-            target_arch = "s390x",
+-            target_arch = "sparc64"
+-        )),
++        all(
++            not(any(
++                target_pointer_width = "32",
++                target_arch = "x86_64",
++                target_arch = "powerpc64",
++                target_arch = "mips64",
++                target_arch = "s390x",
++                target_arch = "sparc64"
++            )),
++            not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))
++        ),
+         repr(align(8))
+     )]
++    #[cfg_attr(
++        all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"),
++        repr(align(4))
++    )]
+     pub struct pthread_mutexattr_t {
+         // Unverified
+         size: [u8; crate::__SIZEOF_PTHREAD_MUTEXATTR_T],
+@@ -320,7 +356,14 @@
+         size: [u8; crate::__SIZEOF_PTHREAD_COND_T],
+     }
+ 
+-    #[repr(align(4))]
++    #[cfg_attr(
++        not(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib")),
++        repr(align(4))
++    )]
++    #[cfg_attr(
++        all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"),
++        repr(align(8))
++    )]
+     pub struct pthread_condattr_t {
+         // Unverified
+         size: [u8; crate::__SIZEOF_PTHREAD_CONDATTR_T],
+@@ -331,9 +374,25 @@
+ pub const PTHREAD_MUTEX_INITIALIZER: pthread_mutex_t = pthread_mutex_t {
+     size: [__PTHREAD_INITIALIZER_BYTE; __SIZEOF_PTHREAD_MUTEX_T],
+ };
+-pub const PTHREAD_COND_INITIALIZER: pthread_cond_t = pthread_cond_t {
+-    size: [__PTHREAD_INITIALIZER_BYTE; __SIZEOF_PTHREAD_COND_T],
+-};
++cfg_if! {
++    if #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))] {
++        // newlib's _PTHREAD_COND_INITIALIZER is { CLOCK_REALTIME, 0 } and
++        // CLOCK_REALTIME is 1 in devkitA64 <time.h>. clockid_t is the first
++        // field, so byte 0 of the little-endian object is the clock id.
++        // All-zero bytes would mean clock 0, which is not CLOCK_REALTIME.
++        pub const PTHREAD_COND_INITIALIZER: pthread_cond_t = pthread_cond_t {
++            size: {
++                let mut bytes = [__PTHREAD_INITIALIZER_BYTE; __SIZEOF_PTHREAD_COND_T];
++                bytes[0] = 1;
++                bytes
++            },
++        };
++    } else {
++        pub const PTHREAD_COND_INITIALIZER: pthread_cond_t = pthread_cond_t {
++            size: [__PTHREAD_INITIALIZER_BYTE; __SIZEOF_PTHREAD_COND_T],
++        };
++    }
++}
+ pub const PTHREAD_RWLOCK_INITIALIZER: pthread_rwlock_t = pthread_rwlock_t {
+     size: [__PTHREAD_INITIALIZER_BYTE; __SIZEOF_PTHREAD_RWLOCK_T],
+ };
+@@ -377,6 +436,22 @@
+         pub const __SIZEOF_PTHREAD_RWLOCK_T: usize = 32;
+         pub const __SIZEOF_PTHREAD_RWLOCKATTR_T: usize = 8;
+         pub const __SIZEOF_PTHREAD_BARRIER_T: usize = 32;
++    } else if #[cfg(all(target_arch = "aarch64", target_os = "horizon", target_env = "newlib"))] {
++        // Measured against devkitA64 <sys/_pthreadtypes.h> + <sys/lock.h> with
++        // the Switch feature set: _LOCK_T = uint32_t, _COND_T = uint32_t,
++        // clockid_t = c_ulong; _POSIX_THREAD_PRIO_PROTECT,
++        // _POSIX_THREAD_CPUTIME and _POSIX_THREAD_PROCESS_SHARED are unset;
++        // _UNIX98_THREAD_MUTEX_ATTRIBUTES is 1. No runtime support claimed.
++        const __PTHREAD_INITIALIZER_BYTE: u8 = 0;
++        pub const __SIZEOF_PTHREAD_ATTR_T: usize = 24;
++        pub const __SIZEOF_PTHREAD_MUTEX_T: usize = 12;
++        pub const __SIZEOF_PTHREAD_MUTEXATTR_T: usize = 4;
++        pub const __SIZEOF_PTHREAD_COND_T: usize = 16;
++        pub const __SIZEOF_PTHREAD_CONDATTR_T: usize = 8;
++        // Not measured by this audit; left at the generic newlib values.
++        pub const __SIZEOF_PTHREAD_RWLOCK_T: usize = 56;
++        pub const __SIZEOF_PTHREAD_RWLOCKATTR_T: usize = 8;
++        pub const __SIZEOF_PTHREAD_BARRIER_T: usize = 32; // not measured here
+     } else {
+         const __PTHREAD_INITIALIZER_BYTE: u8 = 0;
+         pub const __SIZEOF_PTHREAD_ATTR_T: usize = 56;

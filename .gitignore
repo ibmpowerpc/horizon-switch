@@ -35,3 +35,14 @@
 
 # Release-only compiled original exporter bundle.
 /exporters/
+
+# CraftRustNX Switch port
+/platform/switch/probe/build/
+/platform/switch/probe/build-rust/
+/platform/switch/rust-probe/target/
+/platform/switch/probe/*.elf
+/platform/switch/probe/*.nacp
+/platform/switch/probe/*.nro
+/platform/switch/probe/*.map
+/dist/
+/upstream/

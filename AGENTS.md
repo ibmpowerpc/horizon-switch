@@ -260,3 +260,34 @@ python3 tools/parity.py dedicated_server server_entities server_player_damage
 [docs/server-levels.md](docs/server-levels.md) (levels per dimension) ·
 [docs/rust-parity.md](docs/rust-parity.md) (what is ported) · [docs/known-issues.md](docs/known-issues.md) ·
 [docs/release-flow.md](docs/release-flow.md) · [docs/README.md](docs/README.md) (index).
+
+# CraftRustNX fork priorities
+
+The primary purpose of this fork is the native Nintendo Switch port. Switch work
+lives on main, with horizon-rust/horizon configured as upstream. This includes
+C/libnx hardware bring-up and Rust runtime experiments in platform/switch; the
+upstream Rust-only player-code rule does not exclude these platform probes.
+Upstream issue-claim and PR workflows apply when contributing upstream; the user
+has authorized direct integration into this fork's main. Do not post upstream
+issues or comments without an explicit user request.
+
+# Workspace constraints
+
+## Disk space
+
+The user has limited free disk space (reported approximately 21 GB on 2026-11-15).
+Check actual available space with `df -h .` before and after substantial downloads
+or builds. Keep at least 10 GiB free as a working reserve; stop a large operation
+before it threatens that reserve and report what needs space.
+
+Reuse the existing `devkitpro/devkita64:20260219` Docker image. Avoid additional
+toolchain images, duplicate source trees, full upstream history, and simultaneous
+Rust debug/release builds. Estimate space before cloning Horizon or building its
+client. Current scope is the small C/libnx hardware probe and an offline-built
+Rust `no_std` static-library experiment using the already installed compiler
+and matching rust-src. Keep that experiment's build artifacts under 512 MiB;
+do not install toolchains or fetch dependencies automatically.
+
+Clean only artifacts created for this task when they are no longer needed.
+Never run global Docker prune or delete unrelated images, containers, volumes,
+user files, or caches. Keep the deliverable `.nro` and build verification record.
