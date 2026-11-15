@@ -57,6 +57,13 @@ SOURCES := source-std
 endif
 DATA		:=	data
 INCLUDES	:=	include
+ifneq ($(strip $(NET_ARCHIVE)),)
+TARGET := craftrustnx-net-probe
+BUILD := build-net
+APP_TITLE := CraftRustNX Java Status Probe
+SOURCES := source-net
+INCLUDES += ../net-probe/include
+endif
 #ROMFS	:=	romfs
 
 #---------------------------------------------------------------------------------
@@ -74,7 +81,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE)),-lsysbase,)
+LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE) $(NET_ARCHIVE)),-lsysbase,)
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -218,7 +225,7 @@ $(OUTPUT).nso	:	$(OUTPUT).elf
 
 endif
 
-$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE)
+$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
 

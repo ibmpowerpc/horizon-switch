@@ -89,3 +89,12 @@ bash scripts/build-switch.sh docker std
 синхронизацию и TLS-деструкторы рабочего потока. Пользователь подтвердил **PASS
 для всех шести проверок на Switch Lite** 2026-11-15. Файлы, сеть и игровой движок этим NRO
 не проверяются. Подробности — в [std-probe](std-probe/README.md).
+
+## Сетевой status-тест
+
+`bash scripts/build-switch.sh docker net` собирает отдельный
+`craftrustnx-net-probe.nro`. X вводит адрес Java-сервера, Y — порт, A отправляет
+status-запрос, B отменяет, Plus завершает после остановки потока. `DONE` означает
+получение status-кадра; это ещё не вход в мир и не проверка offline-аккаунта.
+Аппаратный запуск предстоит. DNS может задержать отмену/выход.
+Подробности и host-проверки — в [net-probe](net-probe/README.md).

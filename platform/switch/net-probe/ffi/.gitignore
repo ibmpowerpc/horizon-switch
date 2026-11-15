@@ -1,0 +1,9 @@
+# Local build output (host target dir); the staticlib itself is packaging's job.
+/build/
+/target/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo

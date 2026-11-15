@@ -12,6 +12,8 @@ compile-only ABI audit. All six checks in the isolated Rust std runtime probe
 passed on Switch Lite: allocation, time, main-thread TLS, thread spawn/join,
 mutex/condition-variable synchronization and worker TLS destructors. Graphics, sound and multiplayer
 on Switch remain to be implemented and tested.
+An isolated Java server status probe now builds; its loopback TCP fixtures pass
+on the host, while execution on Switch remains unverified.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

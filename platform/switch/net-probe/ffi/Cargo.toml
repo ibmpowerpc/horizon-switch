@@ -1,0 +1,30 @@
+[package]
+name = "craftrustnx-status-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "craftrustnx_status_ffi"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+craftrustnx-net-probe-codec = { path = "../codec", default-features = false }
+
+[features]
+default = []
+
+[profile.release]
+panic = "abort"
+debug = 0
+lto = false
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"
+
+[workspace]
+
+[profile.test]
+debug = 0
+incremental = false

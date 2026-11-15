@@ -23,7 +23,14 @@ case "$variant" in
     native_args=("STD_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("STD_ARCHIVE=/workspace/$archive_rel")
     ;;
-  *) echo 'Variant must be hardware, rust or std.' >&2; exit 2 ;;
+  net)
+    bash "$project_dir/platform/switch/net-probe/build.sh"
+    target=craftrustnx-net-probe
+    archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_status_ffi.a
+    native_args=("NET_ARCHIVE=$project_dir/$archive_rel")
+    docker_args=("NET_ARCHIVE=/workspace/$archive_rel")
+    ;;
+  *) echo 'Variant must be hardware, rust, std or net.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -41,7 +48,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net]' >&2
     exit 2
     ;;
 esac
