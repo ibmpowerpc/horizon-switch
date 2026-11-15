@@ -46,6 +46,8 @@ pub struct LpEvent {
     pub name: [c_char; 17],
     /// Java 26.3 `LoginFinished` session UUID.
     pub session: [u8; 16],
+    /// Only for EncryptionRequest: whether a real session join is required.
+    pub should_authenticate: u8,
 }
 
 fn status_of(error: Error) -> i32 {
@@ -79,7 +81,12 @@ fn event_of(decoded: Decoded) -> LpEvent {
             LP_LOGIN_SUCCESS
         }
         Event::Disconnect => LP_DISCONNECT,
-        Event::Hello { .. } => LP_ENCRYPTION_REQUEST,
+        Event::Hello {
+            should_authenticate,
+        } => {
+            event.should_authenticate = u8::from(should_authenticate);
+            LP_ENCRYPTION_REQUEST
+        }
         Event::Compression { threshold } => {
             event.threshold = threshold;
             LP_SET_COMPRESSION
@@ -237,6 +244,8 @@ pub unsafe extern "C" fn craftrustnx_login_decode(
                 ptr::addr_of_mut!((*event).uuid).write(event_value.uuid);
                 ptr::addr_of_mut!((*event).name).write(event_value.name);
                 ptr::addr_of_mut!((*event).session).write(event_value.session);
+                ptr::addr_of_mut!((*event).should_authenticate)
+                    .write(event_value.should_authenticate);
             }
             LP_OK
         }
@@ -356,6 +365,7 @@ mod tests {
         assert_eq!(core::mem::offset_of!(LpEvent, uuid), 20);
         assert_eq!(core::mem::offset_of!(LpEvent, name), 36);
         assert_eq!(core::mem::offset_of!(LpEvent, session), 53);
+        assert_eq!(core::mem::offset_of!(LpEvent, should_authenticate), 69);
         assert_eq!(core::mem::size_of::<[c_char; 17]>(), 17);
 
         // Header enum values.
@@ -525,6 +535,13 @@ mod tests {
         let hello = b"\x07\x01\x00\x01\x02\x01\x01\x01";
         assert_eq!(decode_with(hello, -1, &mut scratch, &mut event), LP_OK);
         assert_eq!(event.kind, LP_ENCRYPTION_REQUEST);
+        assert_eq!(event.should_authenticate, 1);
+        let hello_without_auth = b"\x07\x01\x00\x01\x02\x01\x01\x00";
+        assert_eq!(
+            decode_with(hello_without_auth, -1, &mut scratch, &mut event),
+            LP_OK
+        );
+        assert_eq!(event.should_authenticate, 0);
 
         let compression = b"\x03\x03\x80\x01";
         assert_eq!(
@@ -556,6 +573,7 @@ mod tests {
             uuid: [0xff; 16],
             name: [0x7f; 17],
             session: [0xff; 16],
+            should_authenticate: 0xff,
         };
         // Malformed frame, invalid UTF-8, unsupported id, bad profile, bad
         // threshold and a scratch that is too small.

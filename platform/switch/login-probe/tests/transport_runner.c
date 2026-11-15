@@ -26,9 +26,9 @@ int main(int argc, char **argv) {
         atomic_store(&job.cancel, true);
         if (pthread_join(worker, NULL)) return 4;
     } else lj_run(&job);
-    printf("%d %d %d %d %d %d %u %u\n", atomic_load(&job.stage), job.error,
+    printf("%d %d %d %d %d %d %u %u %u\n", atomic_load(&job.stage), job.error,
         job.system_error, job.resolver_error, job.codec_error, job.compression,
-        job.received_bytes, job.frame_count);
+        job.received_bytes, job.frame_count, job.event.should_authenticate);
     for (size_t i = 0; i < sizeof(job.event.uuid); ++i) printf("%02x", job.event.uuid[i]);
     putchar('\n');
     for (size_t i = 0; i < sizeof(job.event.session); ++i) printf("%02x", job.event.session[i]);

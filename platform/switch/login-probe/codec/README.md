@@ -81,7 +81,7 @@ copy.
 | ID | Event | Validated fields |
 |---|---|---|
 | 0 | `LP_DISCONNECT` | one length-prefixed UTF-8 JSON string, not syntax-parsed, no trailing bytes |
-| 1 | `LP_ENCRYPTION_REQUEST` | server id (≤20 UTF-16 units), key byte array, challenge byte array, bool; the attempt stops here whatever the bool says |
+| 1 | `LP_ENCRYPTION_REQUEST` (`should_authenticate` exposed as 0/1) | server id (≤20 UTF-16 units), key byte array, challenge byte array, bool; the attempt stops here whatever the bool says |
 | 2 | `LP_LOGIN_SUCCESS` | profile UUID, ASCII name (1..16 letters/digits/underscore, NUL-padded into `name[17]`), properties (≤64: name ≤64, value, optional signature ≤1024), then the Java 26.3 **session UUID** |
 | 3 | `LP_SET_COMPRESSION` | threshold `VarInt >= -1` |
 | 4 | `LP_CUSTOM_QUERY` | transaction `VarInt`, channel identifier, rest of the frame |
@@ -107,7 +107,7 @@ padding included — so no stale field or padding byte can leak into a report.
 ### Safety contract
 
 `struct lp_event` is `#[repr(C)]` with the header's field order and size (72
-bytes, `uuid` at 20, `name` at 36, `session` at 53). Callers guarantee valid,
+bytes, `uuid` at 20, `name` at 36, `session` at 53, `should_authenticate` at 69). Callers guarantee valid,
 aligned, non-overlapping buffers and correct lengths; null pointers and
 out-of-range lengths are checked *before* any slice is formed and are
 `LP_BAD_ARGUMENT`. Malformed input cannot panic: every read is bounds-checked,

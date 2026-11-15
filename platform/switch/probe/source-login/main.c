@@ -37,7 +37,8 @@ static const char *LABEL_NO_DATA = "(no event data)";
 static const char *LABEL_SOCKETS_OK = "Sockets initialized: yes";
 static const char *LABEL_SOCKETS_FAIL = "Sockets initialization FAILED";
 static const char *LABEL_DNS_WAIT = "DNS may block; cancellation waits for getaddrinfo.";
-static const char *LABEL_NO_CONFIG = "LOGIN_ACCEPTED stops before configuration/play. Offline only.";
+static const char *LABEL_NO_CONFIG = "Diagnostic only. The Stage line shows the result. No gameplay.";
+static const char *LABEL_AUTH_FLAG = "Server should_authenticate:";
 
 static const char *stage_name(enum lj_stage stage) {
     switch (stage) {
@@ -282,6 +283,12 @@ int main(void) {
         printf("%s %s\x1b[K\n", LABEL_STAGE, stage_name(current_stage));
 
         if (is_terminal) {
+            if (current_stage == LJ_AUTH_REQUIRED) {
+                printf("%s %s\n", LABEL_AUTH_FLAG, job.event.should_authenticate ? "true" : "false");
+                printf("%s\n", job.event.should_authenticate
+                    ? "Server requests session authentication and encryption."
+                    : "Server requests encryption without session authentication.");
+            }
             printf("%s %s", LABEL_ERROR, error_name(job.error));
             if (job.error != LJ_ERR_NONE) {
                 if (job.system_error != 0)

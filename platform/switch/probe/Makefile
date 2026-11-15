@@ -67,7 +67,8 @@ endif
 ifneq ($(strip $(LOGIN_ARCHIVE)),)
 TARGET := craftrustnx-login-probe
 BUILD := build-login
-APP_TITLE := CraftRustNX Java Login Probe
+APP_TITLE := CraftRustNX Login Info Probe
+APP_VERSION := 0.1.1
 SOURCES := source-login
 INCLUDES += ../login-probe/include
 DEFINES += -Wframe-larger-than=32768
@@ -219,6 +220,7 @@ all	:	$(OUTPUT).nro
 
 ifeq ($(strip $(NO_NACP)),)
 $(OUTPUT).nro	:	$(OUTPUT).elf $(OUTPUT).nacp
+$(OUTPUT).nacp : $(TOPDIR)/Makefile
 else
 $(OUTPUT).nro	:	$(OUTPUT).elf
 endif

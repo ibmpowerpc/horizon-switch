@@ -4,7 +4,7 @@ This standalone probe targets protocol 777. It sends a login handshake and
 LoginStart with an offline UUID, then stops after validating LoginFinished.
 It sends no LoginAcknowledged and does not enter configuration or play.
 
-Build/link, 31 Rust tests and 18 host TCP fixtures pass. Hardware login success
+Build/link, 31 Rust tests and 19 host TCP fixtures pass. Hardware login success
 is not yet verified. The separate status probe has Switch Lite hardware evidence.
 
 ## Build
@@ -31,7 +31,13 @@ budget and 10 GiB free-space reserve. No toolchains/dependencies are downloaded.
 diagnostic immediately closes. `DISCONNECTED` displays bounded sanitized server
 payload. `AUTH_OR_ENCRYPTION_REQUIRED` means encryption/authentication is not
 implemented, including encryption requests with should-authenticate=false.
-Queries/cookies return `UNSUPPORTED`. No passwords or Microsoft tokens are used.
+The screen also reports `Server should_authenticate: true/false` for encryption
+requests. False still needs transport encryption; true additionally requests a
+real session join. Queries/cookies return `UNSUPPORTED`. No passwords or Microsoft
+tokens are used.
+
+The updated hbmenu title is **CraftRustNX Login Info Probe**, version 0.1.1.
+The top explanatory label is constant; only the **Stage** line is the result.
 
 ## Limits
 

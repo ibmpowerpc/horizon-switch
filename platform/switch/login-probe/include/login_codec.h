@@ -16,6 +16,7 @@ struct lp_event {
     uint8_t uuid[16];
     char name[17]; /* Server profile, NUL terminated; only for LOGIN_SUCCESS. */
     uint8_t session[16]; /* Java 26.3 LoginFinished session UUID. */
+    uint8_t should_authenticate; /* Only for ENCRYPTION_REQUEST; 0 or 1. */
 };
 /* Caller-owned, valid, aligned, non-overlapping buffers/outputs; no allocation.
  * Fixed protocol 777. Username: 1..16 ASCII letters, digits, underscore.

@@ -43,7 +43,7 @@ def main():
     compression = frame(b"\x03\x01")  # threshold=1
     compressed = frame(vi(len(success)) + zlib.compress(success))
 
-    def fixture(label, chunks, stage, error=0, mode="normal", frames=None, threshold=None):
+    def fixture(label, chunks, stage, error=0, mode="normal", frames=None, threshold=None, auth=None):
         stop = threading.Event()
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
@@ -92,6 +92,8 @@ def main():
                 assert values[7] == frames, (label, values)
             if threshold is not None:
                 assert values[5] == threshold, (label, values)
+            if auth is not None:
+                assert values[8] == auth, (label, values)
             if stage == 5:  # LJ_ACCEPTED
                 assert lines[1:4] == [uuid.hex(), session.hex(), name.decode()], (label, lines)
             if mode == "cancel-live":
@@ -104,7 +106,8 @@ def main():
     fixture("uncompressed envelope", [frame(b"\x03" + vi(256)) + frame(b"\x00" + success)], 5, frames=2, threshold=256)
     fixture("disabled compression", [frame(b"\x03" + vi(-1)) + frame(success)], 5, frames=2, threshold=-1)
     fixture("disconnect reason", [frame(b"\x00" + string(b'{"text":"test rejection"}'))], 6, frames=1)
-    fixture("encryption required", [frame(b"\x01\x00\x01x\x01y\x00")], 7, frames=1)
+    fixture("encryption without session auth", [frame(b"\x01\x00\x01x\x01y\x00")], 7, frames=1, auth=0)
+    fixture("encryption with session auth", [frame(b"\x01\x00\x01x\x01y\x01")], 7, frames=1, auth=1)
     fixture("custom query", [frame(b"\x04\x00" + string(b"test:channel"))], 8, frames=1)
     fixture("cookie request", [frame(b"\x05" + string(b"test:cookie"))], 8, frames=1)
     fixture("unknown packet", [frame(b"\x06")], 8)

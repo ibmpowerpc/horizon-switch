@@ -244,3 +244,34 @@ std::net или длительную стабильность. Следующи�
 query/cookie, конфигурация и игровой мир не реализованы. Любой EncryptionRequest
 завершает тест как AUTH_OR_ENCRYPTION_REQUIRED. IPv4/первый адрес, 64 KiB body cap;
 DNS может блокировать отмену, 10-секундный deadline начинается после DNS.
+
+## Передача login-probe через MTP
+
+2026-11-15 новый `craftrustnx-login-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777263.
+Обратное чтение подтвердило побайтовое совпадение: 428229 байт, SHA256
+`412989f3c46e5bd2f29384efb1436493fcdad97797b39154526717bee9416605`.
+Предыдущие NRO не заменялись. Временный helper/readback удалены.
+Аппаратный результат login ещё ожидается.
+
+## Аппаратный login: запрос шифрования и диагностическая версия 0.1.1
+
+2026-11-15 пользователь сообщил Stage `AUTH_OR_ENCRYPTION_REQUIRED`, Error `NONE`.
+Подтверждён приём и разбор EncryptionRequest на Switch Lite, но не LoginFinished.
+Старый NRO не показывал should_authenticate: нельзя сделать вывод о требовании
+сессии или настройке online-mode. Постоянная верхняя надпись про LOGIN_ACCEPTED
+не является результатом: результат показывает только строка Stage.
+
+В версии 0.1.1 флаг передаётся через C ABI и отображается отдельно как
+`Server should_authenticate: true/false`. Поле использует offset 69, размер
+lp_event остаётся 72 байта. Верхняя надпись заменена пояснением «The Stage line
+shows the result». NACP title — `CraftRustNX Login Info Probe`; изменение
+Makefile теперь обновляет metadata через явную зависимость NACP.
+
+Пройдены 31 Rust-тест, clippy/fmt и 19 TCP-фикстур, включая оба значения флага.
+Новый NRO: 428229 байт, SHA256
+`0a23c954a9e77860e1e9a5fdf83ee39d1c480990bea6cb4e60c45e348d6699e1`.
+Проверены NRO0 и NACP title/version. Предыдущий артефакт сохранён локально как
+`craftrustnx-login-probe-v0.1.0.nro`; на SD он пока остаётся под прежним именем.
+Новая версия ещё не передана/запущена. Шифрование и online-аутентификация
+этим изменением не реализованы. Артефакты около 457 МиБ, свободно около 16.5 GiB.
