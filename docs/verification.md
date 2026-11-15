@@ -202,3 +202,45 @@ SYNC mutex/condition и TLS worker destructor. Таким образом, баз
 синтаксиса JSON, login, offline-профили, конфигурацию/play, шифрование/компрессию,
 std::net или длительную стабильность. Следующий сетевой этап требует версии
 сервера; status-совместимость не означает совместимость входа по протоколу 777.
+
+## Версия тестового мира и сборка login-probe
+
+Пользователь уточнил версию тестового мира: **Java 26.3**. Протокол 777 выбран
+по pinned исходникам Horizon; успешный status-запрос сам по себе не подтверждает
+совместимость login. Адрес/ник из фотографии не публикуются.
+
+2026-11-15 собран `craftrustnx-login-probe.nro`, 428229 байт, SHA256:
+`412989f3c46e5bd2f29384efb1436493fcdad97797b39154526717bee9416605`.
+Проверены NRO0, ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL и размещение всех
+433 динамических RELA/RELR-релокаций только в writable LOAD-сегменте.
+
+- Rust no_std login staticlib собрана offline установленным Rust 1.100.0,
+  с повторным использованием core-кеша. Локально доступные miniz_oxide 0.8.9
+  и adler2 2.0.1 используются без alloc; ничего не загружалось.
+- Пройдены 31 Rust-тест, clippy `-D warnings` и fmt. Векторы проверяют offline
+  UUID v3, Hello/LoginFinished с session UUID, property caps, framing и zlib.
+  C ABI обнуляет event, затем пишет поля отдельно, не копируя padding структуры.
+  Возвращаемое имя ограничено 1..16 ASCII letters/digits/underscore.
+- Пройдены 18 loopback TCP-фикстур настоящего C transport + Rust archive:
+  raw login profile, coalesced/fragmented сжатый ответ, raw compression envelope,
+  отключение сжатия, disconnect, запрос шифрования, query/cookie, неизвестный ID,
+  checksum, превышение распакованного/внешнего размера, лимит 16 событий, EOF,
+  отмена до DNS/при чтении и deadline. Fixtures проверяют закрытие без LoginAcknowledged.
+  Отмена при чтении около 0.21 с, deadline около 10.01 с на host.
+- Оба packet-буфера размещены в статическом C job. Удалён 64 KiB automatic
+  recv buffer, поток получает 128 KiB stack для Rust/miniz. C-сборка использует
+  `-Wframe-larger-than=32768`; это не измерение полного Rust call stack.
+- Первый линк ошибочно использовал мои compile-only C-объекты без fPIE из
+  рабочего каталога Makefile. После удаления только этих временных объектов
+  штатная сборка с fPIE прошла. Диагностический ELF с ослабленным linker flag
+  удалён; поставляемый NRO собран без ослабления read-only relocation checks.
+- Общий budget helper учитывает target/build, готовые ELF/NRO/NACP/maps/listings
+  и dist без повторного счёта вложенных каталогов: около 457 МиБ из 512 МиБ,
+  свободно около 17 GiB (резерв 10 GiB). Старые NRO сохранены.
+
+Аппаратный login ещё не проверен. `LOGIN_ACCEPTED` означает только получение
+структурно проверенного LoginFinished; probe закрывается до configuration/play,
+не отправляя acknowledgement. Microsoft-аутентификация/шифрование, ответы на
+query/cookie, конфигурация и игровой мир не реализованы. Любой EncryptionRequest
+завершает тест как AUTH_OR_ENCRYPTION_REQUIRED. IPv4/первый адрес, 64 KiB body cap;
+DNS может блокировать отмену, 10-секундный deadline начинается после DNS.

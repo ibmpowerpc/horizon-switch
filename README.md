@@ -15,6 +15,8 @@ on Switch remain to be implemented and tested.
 The isolated Java server status probe passed its host TCP fixtures, and the user
 confirmed `DONE` with a recognizable server response on Switch Lite. Login and
 gameplay remain unimplemented in the probe.
+An offline login diagnostic for Java 26.3 also builds and passes host fixtures;
+its login acceptance on Switch is not yet verified.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

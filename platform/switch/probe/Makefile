@@ -64,6 +64,14 @@ APP_TITLE := CraftRustNX Java Status Probe
 SOURCES := source-net
 INCLUDES += ../net-probe/include
 endif
+ifneq ($(strip $(LOGIN_ARCHIVE)),)
+TARGET := craftrustnx-login-probe
+BUILD := build-login
+APP_TITLE := CraftRustNX Java Login Probe
+SOURCES := source-login
+INCLUDES += ../login-probe/include
+DEFINES += -Wframe-larger-than=32768
+endif
 #ROMFS	:=	romfs
 
 #---------------------------------------------------------------------------------
@@ -81,7 +89,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE) $(NET_ARCHIVE)),-lsysbase,)
+LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE)),-lsysbase,)
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -225,7 +233,7 @@ $(OUTPUT).nso	:	$(OUTPUT).elf
 
 endif
 
-$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE)
+$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
 

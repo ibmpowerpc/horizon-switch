@@ -1,0 +1,13 @@
+# Build artifacts (host verification builds under build/host-target)
+target/
+build/
+
+# Profiling output
+*.hzperf
+coverage/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo

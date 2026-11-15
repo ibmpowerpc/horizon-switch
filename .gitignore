@@ -41,6 +41,7 @@
 /platform/switch/probe/build-rust/
 /platform/switch/probe/build-std/
 /platform/switch/probe/build-net/
+/platform/switch/probe/build-login/
 /platform/switch/rust-probe/target/
 /platform/switch/probe/*.elf
 /platform/switch/probe/*.nacp

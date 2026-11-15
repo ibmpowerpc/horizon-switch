@@ -100,3 +100,13 @@ status-запрос, B отменяет, Plus завершает после ос
 Пользователь подтвердил `DONE` и узнаваемый ответ своего сервера на Switch Lite.
 DNS может задержать отмену/выход.
 Подробности и host-проверки — в [net-probe](net-probe/README.md).
+
+## Диагностика offline login
+
+`bash scripts/build-switch.sh docker login` собирает отдельный
+`craftrustnx-login-probe.nro` для Java 26.3 / protocol 777. X — адрес,
+Y — порт, L — offline-ник (по умолчанию `CraftRustNX`), A — подключиться.
+`LOGIN_ACCEPTED` означает получение login-профиля: тест сразу закрывает
+соединение, не переходя к конфигурации и игровому миру. Online-аутентификация
+и шифрование не реализованы. Сборка и host-тесты прошли; аппаратная проверка
+предстоит. См. [login-probe](login-probe/README.md).
