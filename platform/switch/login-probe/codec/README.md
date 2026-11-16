@@ -1,14 +1,18 @@
-# Login codec (protocol 777)
+# Login and configuration codec (protocol 777)
 
-Bounded, allocation-free Rust codec for the login state of Java 26.3
-(protocol 777), built as a `staticlib` (`libcraftrustnx_login_codec.a`) for the
-CraftRustNX Switch login probe. The C ABI is exactly
-[`../include/login_codec.h`](../include/login_codec.h) (read-only here); the C
-source-login worker, build scripts and hardware runs live beside it.
+Bounded, allocation-free Rust codec for the login and configuration states of
+Java 26.3 (protocol 777), built as a `staticlib`
+(`libcraftrustnx_login_codec.a`) for the CraftRustNX Switch login probe. The C
+ABI is exactly [`../include/login_codec.h`](../include/login_codec.h) and
+[`../include/configuration_codec.h`](../include/configuration_codec.h)
+(read-only here); the C source-login worker, build scripts and hardware runs
+live beside it.
 
 It is a diagnostic only: it *describes* the exchange. It does not connect,
-resolve names, authenticate, send packets, acknowledge configuration, enter play, log
-or allocate. Everything is `no_std`, no floats, caller-owned buffers.
+resolve names, authenticate, send packets, store cookies, download resource
+packs, follow transfers, install registries or world data, accept a code of
+conduct, enter play, log or allocate. Everything is `no_std`, no floats,
+caller-owned buffers.
 
 ```sh
 cargo test  --offline --locked            # host, ignored build dir
@@ -141,6 +145,72 @@ A host-only `rust_eh_personality` shim (as in the status probe's FFI crate)
 keeps a plain C linker working; the Switch target's abort-built core does not
 need it.
 
+## `craftrustnx_configuration_decode`
+
+Decodes **one** complete clientbound frame from `data` into `scratch` and fills
+`struct cf_event` (32 bytes: `kind`, `consumed`, `body_length`, `packet_id`,
+`payload_offset`, `payload_length`, `reply_length`, `flags`). It shares the
+login codec's frame reader, envelope and inflater with configuration limits
+instead of duplicating packet framing:
+
+- outer frame body `1..=2097151` (`CF_MAX_FRAME`) plus at most a five-byte
+  prefix, so `CF_MAX_WIRE` 2097156 on the wire;
+- an envelope may declare `0..=8388608` (`CF_MAX_BODY`) bytes of output; an
+  oversized prefix or declared length is `CF_BAD_FRAME` from that length alone,
+  **before** any buffering wait or inflation;
+- a compressed stream must inflate to exactly its declared length, consume its
+  frame exactly and pass the Adler-32 trailer (strict zlib, `miniz_oxide` core).
+
+`compression` is `-1` (raw frames) or the announced threshold; `phase` is `0`
+(configuration) or `1` (play). Only one frame is consumed, so a coalesced tail
+stays for the caller; an incomplete outer frame (including an incomplete prefix)
+is `CF_NEED_MORE`, a complete but malformed one is `CF_BAD_FRAME`.
+
+Replies are **unframed bodies** for the caller to frame and cipher; every reply
+length is checked against `CF_REPLY_BODY` 1024 and then against `reply_capacity`
+before a byte is written (`CF_BAD_FRAME` / `CF_OUTPUT_SMALL`), so no partial
+reply is ever produced.
+
+| Wire ID | Kind | Validation / reply |
+|---|---|---|
+| 3 `FinishConfiguration` | `CF_FINISH` | empty body; reply `[3]` |
+| 4 `KeepAlive` | `CF_KEEP_ALIVE` | exactly one long; reply `[4]` + the same 8 bytes |
+| 5 `Ping` | `CF_PING` | exactly one int; reply `[5]` + the same 4 bytes |
+| 15 `SelectKnownPacks` | `CF_KNOWN_PACKS` | `0..=256` triples of strings (≤32767 UTF-16 units each), full body; reply is always `[7,0]`: this probe has no packs and never claims resources |
+| 0 `CookieRequest` | `CF_COOKIE_REQUEST` | identifier key, nothing else; reply `[1]` + key + `false` (no payload, nothing stored) |
+| 9 `ResourcePackPush` | `CF_RESOURCE_PACK` | UUID, URL, hash (≤40 units), required, optional prompt NBT (opaque but must carry bytes); reply `[6]` + UUID + `VarInt` 1 = **declined**; `flags` bit 0 mirrors `required`; nothing is downloaded |
+| 2 `Disconnect` | `CF_DISCONNECT` | raw NBT payload, bounded and opaque; not JSON-parsed and no text claimed |
+| 20 `CodeOfConduct` | `CF_USER_ACTION` | one UTF-8 string; reported, never accepted |
+| 12 `Transfer` | `CF_TRANSFER` | host string and port; reported, never followed |
+| 1, 6, 7, 8, 10, 11, 13, 14, 16, 17, 18, 19 | `CF_METADATA` | counters only (`packet_id`, `body_length`, `payload_offset/length`); payload stays opaque: no NBT validation, no registry or world install, no "ready" claim |
+| any other, incl. negative | — | `CF_UNSUPPORTED` |
+
+In the play phase only the non-negative packet ID is read: the body is reported
+as `CF_PLAY_PACKET` with bounded opaque counters and no gameplay schema or world
+claim.
+
+`payload_offset`/`payload_length` locate the bytes after the packet ID inside
+`scratch` (the whole body, packet ID included, starts at 0).
+
+## `craftrustnx_configuration_frame`
+
+Frames one client body of `1..=1024` bytes. `-1` writes a raw frame; `>= 0`
+writes the compression envelope, raw when the body is below the threshold and
+compressed at or above it. There is no compressor dependency: the compressed
+form is a single **stored DEFLATE block** inside a zlib wrapper (`78 01`) with
+an exact Adler-32 trailer, so thresholds 0 and 1 work for small client
+acknowledgements and every inflater, Python's `zlib` included, accepts it. The
+complete wire length is checked against `capacity` before serializing:
+failures give `CF_OUTPUT_SMALL` (or `CF_BAD_ARGUMENT` for an empty/oversized
+body or `compression < -1`), with `*written == 0` and `out` untouched. Ciphering
+is the caller's job.
+
+### Status codes
+
+`CF_OK 0`, `CF_NEED_MORE 1`, `CF_BAD_ARGUMENT -1`, `CF_OUTPUT_SMALL -2`,
+`CF_BAD_FRAME -3`, `CF_UNSUPPORTED -5`. Every failure zeroes all 32 bytes of
+`cf_event` — padding included.
+
 ## Tests
 
 Unit tests exercise the C ABI functions directly (real `extern "C"` entry
@@ -161,9 +231,22 @@ points, not a re-implementation) and pin:
   zip-bomb shapes, coalesced frames and partial outer frames;
 - event layout/offsets, output reset and untouched-buffer rules, and a panic
   sweep over two-byte inputs, every bit flip of two valid frames and
-  pseudo-random buffers.
+  pseudo-random buffers;
+- configuration control vectors through the ABI: finish, keepalive and pong
+  bytes, always-empty known packs (including a 256-pack offer), cookie reply
+  with no payload, declined resource pack with the required bit, code of
+  conduct and transfer (reported, not followed), disconnect bytes;
+- the 8 MiB body and 2 MiB frame caps rejected from the prefix/envelope before
+  buffering or inflation, opaque metadata accepted but not parsed, play IDs
+  reported, reply cap/capacity, and frame vectors byte-identical to
+  Python-`zlib`-verified stored-block streams at thresholds 0, 1 and above.
 
 The crate was also checked by compiling and running a C program against the
 normative header and the built archive (`_Static_assert`s on the layout and
 enum values, request bytes, raw and compressed decode, corrupted trailers,
 need-more and null-argument paths): all checks pass.
+
+The 50 Rust tests (`cargo test --offline --locked`) pass; the release archive
+exports exactly `craftrustnx_login_start`, `craftrustnx_login_key`,
+`craftrustnx_login_decode`, `craftrustnx_configuration_decode` and
+`craftrustnx_configuration_frame`.

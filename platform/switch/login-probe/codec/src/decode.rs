@@ -3,7 +3,9 @@
 //! structurally validated before an event is returned.
 
 use crate::wire::Reader;
-use crate::{Error, MAX_BODY, MAX_NAME, MAX_WIRE};
+use crate::{
+    Error, CONFIG_MAX_BODY, CONFIG_MAX_FRAME, CONFIG_MAX_WIRE, MAX_BODY, MAX_NAME, MAX_WIRE,
+};
 
 /// Vanilla `GameProfile` property name limit (`StrN<64>`).
 pub const MAX_PROPERTY_NAME: usize = 64;
@@ -73,6 +75,35 @@ pub struct Decoded {
     pub data_length: usize,
 }
 
+/// The outer-frame and envelope limits of one protocol state. Login and
+/// configuration differ only in these numbers, so both share the same framing
+/// code.
+#[derive(Debug, Clone, Copy)]
+pub struct FrameLimits {
+    /// Largest uncompressed packet body (packet ID included).
+    pub max_body: usize,
+    /// Largest outer frame body, envelope prefix included.
+    pub max_frame: usize,
+    /// Largest complete frame on the wire, outer prefix included.
+    pub max_wire: usize,
+}
+
+impl FrameLimits {
+    /// Login: `LP_MAX_BODY` / `LP_MAX_WIRE` (`login_codec.h`).
+    pub const LOGIN: Self = Self {
+        max_body: MAX_BODY,
+        max_frame: MAX_BODY,
+        max_wire: MAX_WIRE,
+    };
+    /// Configuration: `CF_MAX_BODY` / `CF_MAX_FRAME` / `CF_MAX_WIRE`
+    /// (`configuration_codec.h`).
+    pub const CONFIGURATION: Self = Self {
+        max_body: CONFIG_MAX_BODY,
+        max_frame: CONFIG_MAX_FRAME,
+        max_wire: CONFIG_MAX_WIRE,
+    };
+}
+
 /// Read the outer frame length. A short read of a still-possible `VarInt` is
 /// [`Error::NeedMore`]; an impossible one is [`Error::BadFrame`].
 fn outer_length(data: &[u8]) -> Result<(usize, usize), Error> {
@@ -113,7 +144,16 @@ fn inflate_exact(input: &[u8], out: &mut [u8]) -> Result<(), Error> {
 
 /// Decode one compression envelope (frame body when a threshold is set) into
 /// `scratch`, and return the body length.
-fn envelope(frame: &[u8], threshold: i32, scratch: &mut [u8]) -> Result<usize, Error> {
+///
+/// The declared output length is checked against `limits.max_body` and against
+/// `scratch` before anything is inflated, so an oversized or impossible
+/// envelope costs no work.
+fn envelope(
+    frame: &[u8],
+    threshold: i32,
+    scratch: &mut [u8],
+    limits: &FrameLimits,
+) -> Result<usize, Error> {
     let mut reader = Reader::new(frame);
     let declared = reader.varint()?;
     let rest = reader.rest();
@@ -123,7 +163,7 @@ fn envelope(frame: &[u8], threshold: i32, scratch: &mut [u8]) -> Result<usize, E
     if declared == 0 {
         // Vanilla only leaves a body uncompressed when it is below the
         // threshold, so accept exactly that shape (nothing can be raw at 0).
-        if rest.is_empty() || rest.len() >= threshold as usize || rest.len() > MAX_BODY {
+        if rest.is_empty() || rest.len() >= threshold as usize || rest.len() > limits.max_body {
             return Err(Error::BadFrame);
         }
         if rest.len() > scratch.len() {
@@ -134,7 +174,7 @@ fn envelope(frame: &[u8], threshold: i32, scratch: &mut [u8]) -> Result<usize, E
     }
 
     let declared = declared as usize;
-    if declared > MAX_BODY || declared < threshold as usize || rest.is_empty() {
+    if declared > limits.max_body || declared < threshold as usize || rest.is_empty() {
         return Err(Error::BadFrame);
     }
     if declared > scratch.len() {
@@ -144,7 +184,49 @@ fn envelope(frame: &[u8], threshold: i32, scratch: &mut [u8]) -> Result<usize, E
     Ok(declared)
 }
 
-fn finish(reader: &Reader<'_>) -> Result<(), Error> {
+/// Decode the outer frame and, when a threshold is set, its compression
+/// envelope into `scratch`. Returns the wire bytes of this frame and the body
+/// length at the start of `scratch`.
+///
+/// An incomplete outer frame is [`Error::NeedMore`]; an outer or inflated body
+/// over `limits` is [`Error::BadFrame`] from the outer length prefix or complete
+/// compression envelope, before inflation. The envelope is inspected once its
+/// outer frame is complete.
+pub(crate) fn frame_body(
+    data: &[u8],
+    threshold: i32,
+    scratch: &mut [u8],
+    limits: &FrameLimits,
+) -> Result<(usize, usize), Error> {
+    if threshold < -1 {
+        return Err(Error::BadArgument);
+    }
+    let (frame_len, prefix) = outer_length(data)?;
+    if frame_len == 0 || frame_len > limits.max_frame {
+        return Err(Error::BadFrame);
+    }
+    let total = prefix + frame_len;
+    if total > limits.max_wire {
+        return Err(Error::BadFrame);
+    }
+    if data.len() < total {
+        return Err(Error::NeedMore);
+    }
+    let frame = &data[prefix..total];
+
+    let body_len = if threshold < 0 {
+        if frame.len() > scratch.len() {
+            return Err(Error::OutputSmall);
+        }
+        scratch[..frame.len()].copy_from_slice(frame);
+        frame.len()
+    } else {
+        envelope(frame, threshold, scratch, limits)?
+    };
+    Ok((total, body_len))
+}
+
+pub(crate) fn finish(reader: &Reader<'_>) -> Result<(), Error> {
     if reader.remaining() != 0 {
         Err(Error::BadFrame)
     } else {
@@ -287,32 +369,8 @@ pub fn decode_login_frame(
     threshold: i32,
     scratch: &mut [u8],
 ) -> Result<Decoded, Error> {
-    if threshold < -1 {
-        return Err(Error::BadArgument);
-    }
-    let (frame_len, prefix) = outer_length(data)?;
-    if frame_len == 0 || frame_len > MAX_BODY {
-        return Err(Error::BadFrame);
-    }
-    let total = prefix + frame_len;
-    if total > MAX_WIRE {
-        return Err(Error::BadFrame);
-    }
-    if data.len() < total {
-        return Err(Error::NeedMore);
-    }
-    let frame = &data[prefix..total];
-
-    let body_len = if threshold < 0 {
-        if frame.len() > scratch.len() {
-            return Err(Error::OutputSmall);
-        }
-        scratch[..frame.len()].copy_from_slice(frame);
-        frame.len()
-    } else {
-        envelope(frame, threshold, scratch)?
-    };
-    parse_body(&scratch[..body_len], total)
+    let (consumed, body_len) = frame_body(data, threshold, scratch, &FrameLimits::LOGIN)?;
+    parse_body(&scratch[..body_len], consumed)
 }
 
 #[cfg(test)]

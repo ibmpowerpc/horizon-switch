@@ -122,3 +122,15 @@ Login Probe 0.2.0**. Управление X/Y/L/A/B/Plus то же. Тест в�
 `LOGIN_ACCEPTED`, `Encryption active: yes`, Error NONE и threshold 256
 для тестового Java 26.3 LAN-мира. Это пока вход до configuration/play. Подробности —
 [ENCRYPTED.md](login-probe/ENCRYPTED.md).
+
+## Configuration и первый игровой пакет
+
+`bash scripts/build-switch.sh docker configuration` собирает отдельную
+**CraftRustNX Configuration Probe 0.3.0** — `craftrustnx-configuration-probe.nro`.
+Она продолжает зашифрованный offline login, отвечает на служебные сообщения,
+подтверждает configuration и останавливается на первом пакете play.
+Ожидаемый результат: `PLAY_PACKET_SEEN`, `Error: NONE`, `Configuration ACK: yes`.
+Registry/NBT пока принимаются как непрозрачные данные; мир не загружается.
+Никакие resource packs не скачиваются, согласие с правилами автоматически не даётся.
+Подробности и ограничения — в [CONFIGURATION.md](login-probe/CONFIGURATION.md).
+На Switch этот этап ещё не проверен.

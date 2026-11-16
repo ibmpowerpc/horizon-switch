@@ -18,6 +18,9 @@ gameplay remain unimplemented in the probe.
 The user also confirmed encrypted offline login acceptance on Switch Lite against
 a Java 26.3 LAN world: RSA/AES-CFB8, `LOGIN_ACCEPTED`, encryption active and no error.
 The diagnostic stops before configuration/play; no game world is displayed yet.
+A separate [configuration probe](platform/switch/login-probe/CONFIGURATION.md)
+passes host tests through the first opaque play packet; hardware confirmation
+is pending.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

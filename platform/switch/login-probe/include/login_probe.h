@@ -7,10 +7,11 @@
 
 enum lj_stage { LJ_IDLE, LJ_RESOLVING, LJ_CONNECTING, LJ_SENDING, LJ_RECEIVING,
     LJ_ACCEPTED, LJ_DISCONNECTED, LJ_AUTH_REQUIRED, LJ_UNSUPPORTED,
-    LJ_ERROR, LJ_CANCELLED, LJ_KEY_EXCHANGE };
+    LJ_ERROR, LJ_CANCELLED, LJ_KEY_EXCHANGE, LJ_CONFIGURING, LJ_PLAY_WAIT,
+    LJ_PLAY_PACKET_SEEN, LJ_ACTION_REQUIRED };
 enum lj_error { LJ_ERR_NONE, LJ_ERR_ARGUMENT, LJ_ERR_DNS, LJ_ERR_CONNECT,
     LJ_ERR_TIMEOUT, LJ_ERR_SEND, LJ_ERR_RECV, LJ_ERR_EOF, LJ_ERR_PROTOCOL,
-    LJ_ERR_CLOCK, LJ_ERR_CRYPTO };
+    LJ_ERR_CLOCK, LJ_ERR_CRYPTO, LJ_ERR_MEMORY, LJ_ERR_LIMIT };
 struct lj_job {
     char host[254];
     char name[17];
@@ -26,6 +27,16 @@ struct lj_job {
     bool saw_encryption_request;
     bool server_requested_auth;
     bool encryption_active;
+    bool login_accepted;
+    bool configuration_acknowledged;
+    bool resource_pack_declined;
+    bool required_pack_declined;
+    uint32_t configuration_frames;
+    uint32_t configuration_bytes;
+    uint32_t registry_frames;
+    int32_t last_configuration_id;
+    int32_t first_play_id;
+    uint32_t first_play_body_bytes;
     int32_t compression;
     uint32_t received_bytes;
     uint32_t frame_count;
@@ -36,6 +47,7 @@ struct lj_job {
 /* Synchronous worker, sockets initialized by caller. Caller owns static job;
  * only cancel/stage may be accessed while working. Result fields only after
  * acquiring a terminal stage. Join before reusing job/closing socket service.
- * No LoginAcknowledged is sent: ACCEPTED ends at validated LoginFinished. */
+ * Login variants stop at LoginFinished. Configuration build acknowledges it
+ * and stops after the first framed play packet; no world payload is loaded. */
 void lj_run(struct lj_job *job);
 #endif

@@ -366,3 +366,47 @@ job.event.name/uuid из GameProfile, т.е. имя и UUID принятого *
 этой косметической правки пока не собирался и не передавался; сохранены артефакт
 0.2.0 и его предыдущая SHA256-запись. Configuration acknowledgement не отправлялся,
 тест штатно закрыл соединение до конфигурации и входа в игровой мир.
+
+## Configuration → первый play-пакет: подготовка 0.3.0
+
+2026-11-16 собран отдельный `craftrustnx-configuration-probe.nro`, 571589 байт,
+SHA256 `04ee8e34468617a504e2da4b84ebce31ba86e8bc2764e93335eef50a57fe94f5`.
+NACP: CraftRustNX Configuration Probe / 0.3.0. Проверка
+`tools/verify_switch_artifact.py` подтвердила NRO0, ELF64 LE AArch64 DYN,
+отсутствие DT_TEXTREL и 580 runtime RELA/RELR-релокаций в writable LOAD.
+Проверка также отклоняет несовпадающий title. Прежний аппаратно проверенный
+зашифрованный login NRO сохранён с исходной SHA256.
+
+- Configuration-кодек использует общий bounded frame decoder с отдельными
+  лимитами: 2^21−1 framed / 8 MiB decoded. 50 Rust-тестов прошли, включая
+  прежние 34; clippy/fmt чистые. При родительском review исправлена лишняя длина
+  в клиентском кадре без сжатия; независимая raw TCP-проверка подтвердила wire.
+- Прежние 19 TCP-регрессий и 13 зашифрованных login-сценариев прошли с обновлённым
+  транспортом. Четыре дополнительные loopback-проверки без EncryptionRequest
+  подтвердили ACK, brand, ClientInformation, empty KnownPacks и play-переход
+  с compression −1/0/1/256; C-код исполнялся с ASan/UBSan без ошибок.
+- Зашифрованный TX применяется ко всему кадру один раз, до цикла partial send;
+  receive-tail сохраняется после login при переходе на heap-буферы ~10 MiB.
+  Cipher/compression не сбрасываются между фазами. Отмена/ошибки закрывают
+  сокет и освобождают heap/AES до terminal release.
+- Known packs всегда пустые; resource packs отклоняются; CodeOfConduct не
+  принимается автоматически; Transfer не открывает новое соединение. Registry,
+  tags, NBT и первый play payload остаются непрозрачными данными.
+- Успехом этого диагностического этапа будет только `PLAY_PACKET_SEEN` при
+  `Error: NONE` и `Configuration ACK: yes`. Это не подтверждение загруженного
+  мира или готового игрового клиента. Аппаратная проверка ещё не выполнена.
+
+- 12 независимых зашифрованных configuration-фикстур прошли обычный запуск
+  и повтор с ASan/UBSan для C-кода (Rust/OpenSSL не instrumented; LeakSanitizer
+  на этом macOS не поддерживается, detect_leaks=0). Проверены
+  полные brand/ClientInformation, cookie identifier + absent payload, непустой
+  known-pack offer → пустой ответ, keepalive/pong, resource-pack decline,
+  >64 KiB registry, оба фазовых перехода с coalesced/fragmented RX, threshold 0,
+  отсутствие compression, malformed control, unknown ID, CodeOfConduct,
+  Transfer, отказ сервера после обязательного pack и детерминированная отмена.
+  При review фикстуры исправлены обязательный cookie key, pack bool fields,
+  Disconnect ID/NBT и неверная попытка SetCompression в configuration.
+  Производственный клиент корректно отклонял исходный неполный cookie-запрос.
+
+Передача нового NRO через MTP ещё не выполнена. Артефакты около 475 МиБ,
+свободно 15.8 GiB; дополнительных загрузок нет.

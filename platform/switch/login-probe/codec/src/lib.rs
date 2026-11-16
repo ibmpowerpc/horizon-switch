@@ -22,6 +22,8 @@
 #[macro_use]
 extern crate std;
 
+pub mod configuration;
+pub mod configuration_ffi;
 pub mod decode;
 pub mod encode;
 pub mod md5;
@@ -29,6 +31,13 @@ pub mod wire;
 
 pub mod ffi;
 
+pub use configuration::{
+    decode_configuration_frame, encode_client_frame, CfEvent, CF_BAD_ARGUMENT, CF_BAD_FRAME,
+    CF_COOKIE_REQUEST, CF_DISCONNECT, CF_FINISH, CF_KEEP_ALIVE, CF_KNOWN_PACKS, CF_METADATA,
+    CF_NEED_MORE, CF_OK, CF_OUTPUT_SMALL, CF_PHASE_CONFIGURATION, CF_PHASE_PLAY, CF_PING,
+    CF_PLAY_PACKET, CF_RESOURCE_PACK, CF_TRANSFER, CF_UNSUPPORTED, CF_USER_ACTION,
+};
+pub use configuration_ffi::{craftrustnx_configuration_decode, craftrustnx_configuration_frame};
 pub use decode::{decode_login_frame, Decoded, Event, Region};
 pub use encode::{encode_login_key, encode_login_start};
 pub use ffi::{craftrustnx_login_decode, craftrustnx_login_key, craftrustnx_login_start, LpEvent};
@@ -41,6 +50,19 @@ pub const MAX_BODY: usize = 65_536;
 /// `LP_MAX_WIRE`: largest complete frame on the wire, body plus a five-byte
 /// (widest) outer length prefix.
 pub const MAX_WIRE: usize = 65_541;
+
+/// `CF_MAX_BODY`: largest uncompressed configuration packet body (packet ID
+/// included), after an envelope is inflated.
+pub const CONFIG_MAX_BODY: usize = 8_388_608;
+/// `CF_MAX_FRAME`: largest outer configuration frame body, envelope prefix
+/// included.
+pub const CONFIG_MAX_FRAME: usize = 2_097_151;
+/// `CF_MAX_WIRE`: largest complete configuration frame, outer prefix included.
+pub const CONFIG_MAX_WIRE: usize = 2_097_156;
+/// `CF_REPLY_BODY`: largest reply body this diagnostic writes.
+pub const CONFIG_MAX_REPLY: usize = 1024;
+/// Largest client body [`encode_client_frame`] frames.
+pub const CONFIG_MAX_CLIENT_BODY: usize = 1024;
 
 /// Longest host accepted in the handshake (1..=253 graphic ASCII bytes).
 pub const MAX_HOST: usize = 253;

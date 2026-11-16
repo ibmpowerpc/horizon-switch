@@ -79,6 +79,13 @@ APP_TITLE := CraftRustNX Encrypted Login Probe
 APP_VERSION := 0.2.0
 SOURCES += ../login-probe/crypto
 DEFINES += -DCRAFTRUSTNX_ENCRYPTED_LOGIN
+ifneq ($(strip $(CONFIGURATION_PROBE)),)
+TARGET := craftrustnx-configuration-probe
+BUILD := build-configuration
+APP_TITLE := CraftRustNX Configuration Probe
+APP_VERSION := 0.3.0
+DEFINES += -DCRAFTRUSTNX_CONFIGURATION_PROBE
+endif
 endif
 endif
 #ROMFS	:=	romfs

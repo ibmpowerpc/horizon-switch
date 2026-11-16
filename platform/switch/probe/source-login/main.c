@@ -1,15 +1,7 @@
-/* Native Nintendo Switch Java server LOGIN probe: UI and worker thread.
- * Diagnostic for offline login (no encryption/configuration/play). libnx
- * console/pad/swkb with static job and native Thread. Sockets initialized once;
- * all failures visible/released. Host initially empty, port 25565, name
- * CraftRustNX (distinct from host player). X edit host, Y port, L name,
- * A connect explicitly, B cancel, Plus cancel+exit after worker ends. UI stays
- * responsive; edits/connect disabled while busy. Join/close thread before
- * reuse/exit. Show LOGIN_ACCEPTED (stops before configuration/play), server
- * name/UUID, compression/counts, bounded sanitized event payload for disconnect;
- * AUTH_OR_ENCRYPTION_REQUIRED explicit. No server-controlled format
- * strings/ANSI/control codes. No crash/wait forever on code failure, DNS
- * limitation visible. Diagnostic labels centralized for localization.
+/* Native Switch diagnostic console and responsive worker lifecycle.
+ * Result fields are read only after acquiring a terminal stage. Join before
+ * reuse or shutdown. Server-controlled strings are bounded and sanitized.
+ * Centralized diagnostic labels can be localized with the future game UI.
  */
 #include "login_probe.h"
 #include <inttypes.h>
@@ -19,7 +11,9 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
-#ifdef CRAFTRUSTNX_ENCRYPTED_LOGIN
+#if defined(CRAFTRUSTNX_CONFIGURATION_PROBE)
+static const char *LABEL_TITLE = "CraftRustNX: Configuration to First Play Packet";
+#elif defined(CRAFTRUSTNX_ENCRYPTED_LOGIN)
 static const char *LABEL_TITLE = "CraftRustNX: Encrypted Offline Login Probe";
 #else
 static const char *LABEL_TITLE = "CraftRustNX: Java Server LOGIN Probe (Offline)";
@@ -44,6 +38,14 @@ static const char *LABEL_DNS_WAIT = "DNS may block; cancellation waits for getad
 static const char *LABEL_NO_CONFIG = "Diagnostic only. The Stage line shows the result. No gameplay.";
 static const char *LABEL_AUTH_FLAG = "Server should_authenticate:";
 static const char *LABEL_ENCRYPTION = "Encryption active:";
+#ifdef CRAFTRUSTNX_CONFIGURATION_PROBE
+static const char *LABEL_CONFIGURATION = "Configuration ACK: %s | packets: %" PRIu32 " | registries: %" PRIu32 "\n";
+static const char *LABEL_DECODED = "Decoded configuration/play bytes: %" PRIu32 "\n";
+static const char *LABEL_FIRST_PLAY = "First play packet: id=%" PRId32 " body=%" PRIu32 " bytes\n";
+static const char *LABEL_PACK_DECLINED = "Resource pack declined%s.\n";
+static const char *LABEL_PACK_REQUIRED = " (required by server)";
+static const char *LABEL_OPAQUE = "Metadata is opaque. No registries or world loaded.";
+#endif
 
 static const char *stage_name(enum lj_stage stage) {
     switch (stage) {
@@ -53,6 +55,10 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_SENDING: return "SENDING";
     case LJ_RECEIVING: return "RECEIVING";
     case LJ_KEY_EXCHANGE: return "KEY_EXCHANGE";
+    case LJ_CONFIGURING: return "CONFIGURING";
+    case LJ_PLAY_WAIT: return "WAITING_FOR_PLAY_PACKET";
+    case LJ_PLAY_PACKET_SEEN: return "PLAY_PACKET_SEEN";
+    case LJ_ACTION_REQUIRED: return "USER_ACTION_REQUIRED";
     case LJ_ACCEPTED: return "LOGIN_ACCEPTED";
     case LJ_DISCONNECTED: return "DISCONNECTED";
     case LJ_AUTH_REQUIRED: return "AUTH_OR_ENCRYPTION_REQUIRED";
@@ -61,6 +67,13 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_CANCELLED: return "CANCELLED";
     default: return "UNKNOWN";
     }
+}
+
+static bool terminal_stage(int stage) {
+    return stage == LJ_ACCEPTED || stage == LJ_DISCONNECTED ||
+        stage == LJ_AUTH_REQUIRED || stage == LJ_UNSUPPORTED ||
+        stage == LJ_ERROR || stage == LJ_CANCELLED ||
+        stage == LJ_PLAY_PACKET_SEEN || stage == LJ_ACTION_REQUIRED;
 }
 
 static const char *error_name(enum lj_error error) {
@@ -76,6 +89,8 @@ static const char *error_name(enum lj_error error) {
     case LJ_ERR_PROTOCOL: return "PROTOCOL";
     case LJ_ERR_CLOCK: return "CLOCK";
     case LJ_ERR_CRYPTO: return "CRYPTO";
+    case LJ_ERR_MEMORY: return "MEMORY";
+    case LJ_ERR_LIMIT: return "SESSION_LIMIT";
     default: return "UNKNOWN";
     }
 }
@@ -157,9 +172,7 @@ int main(void) {
 
         // Acquire stage with acquire semantics to see result fields.
         int current_stage = atomic_load_explicit(&job.stage, memory_order_acquire);
-        bool is_terminal = (current_stage == LJ_ACCEPTED || current_stage == LJ_DISCONNECTED ||
-                            current_stage == LJ_AUTH_REQUIRED || current_stage == LJ_UNSUPPORTED ||
-                            current_stage == LJ_ERROR || current_stage == LJ_CANCELLED);
+        bool is_terminal = terminal_stage(current_stage);
         const bool is_busy = thread_active && !is_terminal;
 
         // Join thread when terminal stage reached.
@@ -258,9 +271,7 @@ int main(void) {
         // Events may have started a new worker. Never display a prior terminal
         // snapshot while that worker is resetting/writing the result fields.
         current_stage = atomic_load_explicit(&job.stage, memory_order_acquire);
-        is_terminal = (current_stage == LJ_ACCEPTED || current_stage == LJ_DISCONNECTED ||
-                       current_stage == LJ_AUTH_REQUIRED || current_stage == LJ_UNSUPPORTED ||
-                       current_stage == LJ_ERROR || current_stage == LJ_CANCELLED);
+        is_terminal = terminal_stage(current_stage);
 
         // B: cancel (only if thread active and not terminal).
         if ((down & HidNpadButton_B) && thread_active && !is_terminal) {
@@ -310,15 +321,23 @@ int main(void) {
             }
             printf("\x1b[K\n");
 
-            if (current_stage == LJ_ACCEPTED || current_stage == LJ_DISCONNECTED ||
-                current_stage == LJ_AUTH_REQUIRED || current_stage == LJ_UNSUPPORTED) {
-                printf("%s %" PRId32 " (threshold: %" PRId32 ")\x1b[K\n", LABEL_COMPRESSION,
-                       job.compression, job.compression);
-                printf("%s %" PRIu32 "\x1b[K\n", LABEL_FRAMES, job.frame_count);
-                printf("%s %" PRIu32 " bytes\x1b[K\n", LABEL_RECEIVED, job.received_bytes);
-            }
+            printf("%s %" PRId32 "\x1b[K\n", LABEL_COMPRESSION, job.compression);
+            printf("%s %" PRIu32 "\x1b[K\n", LABEL_FRAMES, job.frame_count);
+            printf("%s %" PRIu32 " bytes\x1b[K\n", LABEL_RECEIVED, job.received_bytes);
 
-            if (current_stage == LJ_ACCEPTED) {
+#ifdef CRAFTRUSTNX_CONFIGURATION_PROBE
+            printf(LABEL_CONFIGURATION,
+                job.configuration_acknowledged ? "yes" : "no", job.configuration_frames, job.registry_frames);
+            printf(LABEL_DECODED, job.configuration_bytes);
+            if (current_stage == LJ_PLAY_PACKET_SEEN)
+                printf(LABEL_FIRST_PLAY,
+                    job.first_play_id, job.first_play_body_bytes);
+            if (job.resource_pack_declined)
+                printf(LABEL_PACK_DECLINED, job.required_pack_declined ? LABEL_PACK_REQUIRED : "");
+            puts(LABEL_OPAQUE);
+#endif
+
+            if (job.login_accepted) {
                 char uuid_str[37];
                 printf("\n%s ", LABEL_PROFILE_NAME);
                 sanitize_display((const uint8_t *)job.event.name, (uint32_t)strlen(job.event.name), 16);
@@ -329,13 +348,13 @@ int main(void) {
                 printf("%s %s\x1b[K\n", LABEL_SESSION_UUID, uuid_str);
             }
 
-            if ((current_stage == LJ_DISCONNECTED || current_stage == LJ_UNSUPPORTED) &&
+            if ((current_stage == LJ_DISCONNECTED || current_stage == LJ_UNSUPPORTED || current_stage == LJ_ACTION_REQUIRED) &&
                 job.event.data_length > 0 && job.event.data_offset < LP_MAX_BODY) {
                 printf("\n%s\n", LABEL_EVENT_DATA);
                 const uint32_t safe_len = (job.event.data_length <= LP_MAX_BODY - job.event.data_offset)
                     ? job.event.data_length : (LP_MAX_BODY - job.event.data_offset);
                 sanitize_display(job.scratch + job.event.data_offset, safe_len, 600);
-            } else if (job.event.data_length == 0 && (current_stage == LJ_DISCONNECTED || current_stage == LJ_UNSUPPORTED)) {
+            } else if (job.event.data_length == 0 && (current_stage == LJ_DISCONNECTED || current_stage == LJ_UNSUPPORTED || current_stage == LJ_ACTION_REQUIRED)) {
                 printf("\n%s\n", LABEL_NO_DATA);
             }
         }
