@@ -491,3 +491,22 @@ ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL и все 588 runtime RELA
 сборки около 474 MiB из 512, свободно около 15.7 GiB. Дополнительных зависимостей,
 образов и toolchain не загружалось. Аппаратная play-сессия и передача нового NRO
 на SD пока не выполнены.
+
+## Live Java 26.3 LAN-мир: host Play Session
+
+2026-11-16 status-запрос к текущему LAN-миру пользователя подтвердил
+version.name `26.3`, protocol `777`. Затем host runner с тем же play-кодеком
+и C transport успешно достиг `PLAY_SESSION_OBSERVED` (stage 17) за 16.59 s:
+Error 0, codec 0, compression 256, encryption true, configuration ACK true.
+Получены 32 registry-пакета; первый play ID 50; разобраны Login и позиция,
+отправлен 1 pose ACK и 1 keepalive reply. Приняты 49 opaque чанков, подтверждён
+41 chunk batch; всего 795 play-пакетов / 1695840 decoded play bytes,
+291706 received wire bytes за соединение. Последний play ID 45 (KeepAlive).
+
+Это проверка настоящего Java LAN-мира с компьютера через host OpenSSL backend,
+а не выполнение `.nro` на Switch. Она подтверждает совместимость этого
+ограниченного wire-обмена с текущим сервером, без PlayerLoaded или движения.
+Не заявляется vanilla parity для иных версий/серверов или корректность chunk
+schema. Адрес/порт и session UUID в этот результат не включены. Локальный JSON
+отчёт сохранён в ignored `tests/build/live-play-session.json`.
+Аппаратная Play Session Probe 0.4.0 всё ещё ожидается.

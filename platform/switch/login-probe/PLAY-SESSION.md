@@ -44,3 +44,9 @@ batch counts, and position/dimension. The host fixture
 `tools/test_switch_play_session.py` uses synthetic wire bodies and independent
 OpenSSL CFB8 contexts; it does not replace hardware or vanilla parity testing.
 Source contract: [play-session audit](../../../docs/switch-play-session-audit.md).
+Reproduce host checks: [PLAY-SESSION-TESTS.md](tests/PLAY-SESSION-TESTS.md).
+
+The host runner also completed this exchange with the user's live Java 26.3 LAN
+world in 16.59 seconds: pose ACK, 49 opaque chunks, 41 batch ACKs and one
+keepalive reply. This uses the host OpenSSL backend; Switch execution of 0.4.0
+is still pending. See [verification](../../../docs/verification.md).

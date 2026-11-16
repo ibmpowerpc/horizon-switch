@@ -24,8 +24,9 @@ received opaquely and first play packet ID 50 received with no error. Registry
 interpretation, world loading and rendering remain unimplemented in the probe.
 The [play-session probe](platform/switch/login-probe/PLAY-SESSION.md) passes host
 tests for parsed join data, teleport acknowledgements, opaque chunk batches and
-keep-alive replies. Hardware verification of this next stage is pending; it
-sends no PlayerLoaded and does not implement playable multiplayer.
+keep-alive replies, and completed that exchange with the user's real Java 26.3
+LAN world from the host. Switch hardware verification of this next stage is
+pending; it sends no PlayerLoaded and does not implement playable multiplayer.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)
