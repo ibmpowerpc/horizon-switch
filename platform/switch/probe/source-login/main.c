@@ -12,7 +12,9 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
-#if defined(CRAFTRUSTNX_CONFIGURATION_PROBE)
+#if defined(CRAFTRUSTNX_PLAY_SESSION)
+static const char *LABEL_TITLE = "CraftRustNX: Play Session Probe";
+#elif defined(CRAFTRUSTNX_CONFIGURATION_PROBE)
 static const char *LABEL_TITLE = "CraftRustNX: Configuration to First Play Packet";
 #elif defined(CRAFTRUSTNX_ENCRYPTED_LOGIN)
 static const char *LABEL_TITLE = "CraftRustNX: Encrypted Offline Login Probe";
@@ -48,6 +50,16 @@ static const char *LABEL_PACK_REQUIRED = " (required by server)";
 static const char *LABEL_OPAQUE = "Metadata is opaque. No registries or world loaded.";
 #endif
 
+#ifdef CRAFTRUSTNX_PLAY_SESSION
+static const char *LABEL_PLAY_COUNTS = "Play packets: %" PRIu32 " | decoded bytes: %" PRIu32 "\n";
+static const char *LABEL_PLAY_REPLIES = "Pose ACKs: %" PRIu32 " | keepalive: %" PRIu32 " | pong: %" PRIu32 "\n";
+static const char *LABEL_CHUNKS = "Opaque chunks: %" PRIu32 " | batch ACKs: %" PRIu32 " | last: %" PRId32 ",%" PRId32 "\n";
+static const char *LABEL_DIMENSION = "Dimension:";
+static const char *LABEL_ENTITY = "Entity: %" PRId32 " | game mode: %" PRId32 " | last play ID: %" PRId32 "\n";
+static const char *LABEL_POSE = "Position: %.3f %.3f %.3f | angles: %.1f %.1f\n";
+static const char *LABEL_NOT_READY = "No terrain validated; PlayerLoaded was not sent.";
+#endif
+
 static const char *stage_name(enum lj_stage stage) {
     switch (stage) {
     case LJ_IDLE: return "IDLE";
@@ -58,6 +70,8 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_KEY_EXCHANGE: return "KEY_EXCHANGE";
     case LJ_CONFIGURING: return "CONFIGURING";
     case LJ_PLAY_WAIT: return "WAITING_FOR_PLAY_PACKET";
+    case LJ_PLAY_RECEIVING: return "OBSERVING_PLAY_SESSION";
+    case LJ_PLAY_SESSION_OBSERVED: return "PLAY_SESSION_OBSERVED";
     case LJ_PLAY_PACKET_SEEN: return "PLAY_PACKET_SEEN";
     case LJ_ACTION_REQUIRED: return "USER_ACTION_REQUIRED";
     case LJ_ACCEPTED: return "LOGIN_ACCEPTED";
@@ -74,7 +88,8 @@ static bool terminal_stage(int stage) {
     return stage == LJ_ACCEPTED || stage == LJ_DISCONNECTED ||
         stage == LJ_AUTH_REQUIRED || stage == LJ_UNSUPPORTED ||
         stage == LJ_ERROR || stage == LJ_CANCELLED ||
-        stage == LJ_PLAY_PACKET_SEEN || stage == LJ_ACTION_REQUIRED;
+        stage == LJ_PLAY_PACKET_SEEN || stage == LJ_ACTION_REQUIRED ||
+        stage == LJ_PLAY_SESSION_OBSERVED;
 }
 
 static const char *error_name(enum lj_error error) {
@@ -330,12 +345,34 @@ int main(void) {
             printf(LABEL_CONFIGURATION,
                 job.configuration_acknowledged ? "yes" : "no", job.configuration_frames, job.registry_frames);
             printf(LABEL_DECODED, job.configuration_bytes);
-            if (current_stage == LJ_PLAY_PACKET_SEEN)
+            if (current_stage == LJ_PLAY_PACKET_SEEN || job.play_frames > 0)
                 printf(LABEL_FIRST_PLAY,
                     job.first_play_id, job.first_play_body_bytes);
             if (job.resource_pack_declined)
                 printf(LABEL_PACK_DECLINED, job.required_pack_declined ? LABEL_PACK_REQUIRED : "");
             puts(LABEL_OPAQUE);
+#endif
+
+#ifdef CRAFTRUSTNX_PLAY_SESSION
+            printf(LABEL_PLAY_COUNTS, job.play_frames, job.play_bytes);
+            printf(LABEL_PLAY_REPLIES, job.teleports_acked, job.keepalives_replied, job.pongs_replied);
+            printf(LABEL_CHUNKS, job.chunk_frames, job.chunk_batches, job.last_chunk_x, job.last_chunk_z);
+            if (job.play.login_seen) {
+                printf("%s ", LABEL_DIMENSION);
+                sanitize_display((const uint8_t *)job.play.dimension,
+                    (uint32_t)strnlen(job.play.dimension, sizeof(job.play.dimension)), 100);
+                putchar('\n');
+                printf(LABEL_ENTITY, job.play.player_id, job.play.game_mode, job.last_play_id);
+            }
+            if (job.play.position_seen) {
+                double position[3];
+                float yaw, pitch;
+                memcpy(position, job.play.position_bits, sizeof(position));
+                memcpy(&yaw, &job.play.yaw_bits, sizeof(yaw));
+                memcpy(&pitch, &job.play.pitch_bits, sizeof(pitch));
+                printf(LABEL_POSE, position[0], position[1], position[2], (double)yaw, (double)pitch);
+            }
+            puts(LABEL_NOT_READY);
 #endif
 
             if (job.login_accepted) {

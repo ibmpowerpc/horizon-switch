@@ -3,8 +3,9 @@
 //!
 //! The crate is both the wire codec and its exact C ABI
 //! (`libcraftrustnx_login_codec.a`, `../include/login_codec.h`). It only
-//! *describes* the login exchange: it never connects, authenticates, sends packets,
-//! acknowledges configuration or implements play. All buffers are caller-owned.
+//! *describes* the login, configuration and first play packets: it never
+//! connects, authenticates, sends packets on its own, acknowledges
+//! configuration or simulates play. All buffers are caller-owned.
 //!
 //! - [`encode_login_start`] writes two complete TCP frames: the handshake
 //!   (next state 2 = login) and LoginStart (id 0, name, offline UUID v3).
@@ -13,9 +14,11 @@
 //! - [`decode_login_frame`] parses one complete bounded server frame from the
 //!   login state, with or without the compression envelope, and validates one
 //!   structurally complete event.
+//! - [`decode_play_body`] parses one complete, already-unframed play body and
+//!   answers the small client controls; it never simulates a world.
 //!
-//! `no_std`, no floats, no allocation: the only dependency is `miniz_oxide`
-//! (no-alloc `inflate::core`) for the zlib body of the compression envelope.
+//! `no_std`, no allocation: the only dependency is `miniz_oxide` (no-alloc
+//! `inflate::core`) for the zlib body of the compression envelope.
 #![no_std]
 
 #[cfg(test)]
@@ -27,9 +30,11 @@ pub mod configuration_ffi;
 pub mod decode;
 pub mod encode;
 pub mod md5;
+pub mod play;
 pub mod wire;
 
 pub mod ffi;
+pub mod play_ffi;
 
 pub use configuration::{
     decode_configuration_frame, encode_client_frame, CfEvent, CF_BAD_ARGUMENT, CF_BAD_FRAME,
@@ -41,6 +46,14 @@ pub use configuration_ffi::{craftrustnx_configuration_decode, craftrustnx_config
 pub use decode::{decode_login_frame, Decoded, Event, Region};
 pub use encode::{encode_login_key, encode_login_start};
 pub use ffi::{craftrustnx_login_decode, craftrustnx_login_key, craftrustnx_login_start, LpEvent};
+pub use play::{
+    decode_play_body, LoginUpdate, PlEvent, PlState, PlayDecoded, PoseUpdate, StateChange,
+    PL_BAD_ARGUMENT, PL_BAD_FRAME, PL_BATCH_END, PL_BATCH_START, PL_CHUNK, PL_COOKIE,
+    PL_DISCONNECT, PL_FLAG_PACK_REQUIRED, PL_KEEP_ALIVE, PL_LOGIN, PL_METADATA, PL_OK,
+    PL_OUTPUT_SMALL, PL_PING, PL_POSITION, PL_RECONFIGURE, PL_RESOURCE_PACK, PL_RESPAWN,
+    PL_TRANSFER, PL_UNSUPPORTED,
+};
+pub use play_ffi::craftrustnx_play_decode_body;
 
 /// Protocol version this codec pins: Java 26.3.
 pub const PROTOCOL: i32 = 777;
@@ -63,6 +76,15 @@ pub const CONFIG_MAX_WIRE: usize = 2_097_156;
 pub const CONFIG_MAX_REPLY: usize = 1024;
 /// Largest client body [`encode_client_frame`] frames.
 pub const CONFIG_MAX_CLIENT_BODY: usize = 1024;
+
+/// `PL_MAX_BODY`: largest complete play packet body (packet ID included) the
+/// play decoder accepts. Framing and inflation are the configuration
+/// decoder's job; this is the already-uncompressed body.
+pub const PLAY_MAX_BODY: usize = 8_388_608;
+/// `PL_REPLY_BODY`: largest unframed reply body the play decoder writes.
+pub const PLAY_MAX_REPLY: usize = 1024;
+/// `PL_DIMENSION_CAP`: the state's dimension identifier field, NUL included.
+pub const PLAY_DIMENSION_CAP: usize = 257;
 
 /// Longest host accepted in the handshake (1..=253 graphic ASCII bytes).
 pub const MAX_HOST: usize = 253;

@@ -447,3 +447,47 @@ NRO без изменений прошёл этап. Это подтвержда
 Оба UI-источника с новым общим default прошли SDK `-fsyntax-only` с
 `-Wall -Wextra -Werror` в существующем offline Docker image. Новых build-артефактов
 не создавалось; на хосте остаётся около 15.8 GiB свободного места.
+
+## Play Session Probe 0.4.0: host-проверки и сборка
+
+2026-11-16 собран отдельный `craftrustnx-play-session-probe.nro`, 575685 байт,
+SHA256 `c429b553268dff4395d76e1812b23ab57be6f6ff85021c6ae9e3e8428dd80dc4`.
+NACP title/version: CraftRustNX Play Session Probe / 0.4.0. Проверены NRO0,
+ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL и все 588 runtime RELA/RELR-релокаций
+в writable LOAD. Новый NRO использует общий editable IP default `192.168.0.12`.
+Ранее аппаратно проверенные NRO не заменялись.
+
+- 64 Rust-теста прошли (прежние 50 + 14 play), clippy/fmt чистые. Play ABI:
+  state 320 bytes / align 8, event 32 bytes. State/reply не меняются при ошибке;
+  event обнуляется, поля сохраняются без копирования неинициализированного padding.
+- Независимая TCP-фикстура проверила полные wire-ответы и поймала отсутствующий
+  pitch clamp в начальном кодеке. Исправлен clamp [-90,90] по исходнику
+  `position_packet_pitch`. Также устранено переполнение при предыдущем игровом
+  режиме i32::MIN: optional wire-code проверяется в диапазоне 0..4 до вычитания.
+- 21 новый loopback-сценарий прошёл обычный запуск и ASan/UBSan для C-кода;
+  Rust/OpenSSL не instrumented, LeakSanitizer на этом macOS не поддерживается.
+  Синтетический сервер независимо шифрует/расшифровывает непрерывный CFB8-поток,
+  проверяет Login, полный pose ACK, relative correction/clamp, routing play IDs,
+  >64 KiB opaque chunk, credit ACK, threshold 0 и отсутствие compression,
+  fragmented/coalesced receives, batch и bundle gates. Отдельно проверены
+  malformed/unknown packets, nonfinite pose, относительная первая позиция,
+  packet order, несовпавший/повторный batch, отсутствие batch ACK, respawn,
+  reconfiguration, transfer, отказ после обязательного pack и отмена.
+- Прежние 19 plain login, 13 encrypted login и 12 configuration TCP-сценариев
+  прошли с обновлёнными кодеком и транспортом: всего 65 TCP-сценариев этого этапа.
+- Успех `PLAY_SESSION_OBSERVED` требует Login, отправленного pose ACK, получения
+  chunk, полного подтверждённого batch и ответа на keepalive; открытые bundle/
+  batch не допускают преждевременный успех. Позиция и dimension выводятся только
+  после terminal acquire, как остальные результаты worker.
+- Принимаются только заголовки чанков, остальное остаётся opaque. Registry/light
+  не устанавливаются, PlayerLoaded, движение и client ticks не отправляются.
+  Respawn/StartConfiguration/Transfer прекращают тест вместо выдуманного продолжения.
+- Сохраняются общий post-DNS deadline 30 s, 4096 post-login frames и 64 MiB
+  decoded total. Сервер может прислать keepalive примерно через 15 s; успешный
+  обмен с fixture не устанавливает расписание настоящего Java-сервера.
+
+Удалены только регенерируемые C object/map-каталоги предыдущих проб (около
+10.1 MiB); NRO, ELF и verification records сохранены. Артефакты после новой
+сборки около 474 MiB из 512, свободно около 15.7 GiB. Дополнительных зависимостей,
+образов и toolchain не загружалось. Аппаратная play-сессия и передача нового NRO
+на SD пока не выполнены.

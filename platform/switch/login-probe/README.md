@@ -13,6 +13,8 @@ negotiation without a session-service join and observes the server's decision.
 The `login` variant remains the info-only diagnostic.
 The separate [configuration variant](CONFIGURATION.md) continues through
 configuration and stops at the first opaque play frame; it has no world renderer.
+The [play-session variant](PLAY-SESSION.md) continues through pose acknowledgement,
+opaque chunk batches and a keep-alive response, without sending PlayerLoaded.
 
 ## Build
 

@@ -44,6 +44,7 @@
 /platform/switch/probe/build-login/
 /platform/switch/probe/build-encrypted-login/
 /platform/switch/probe/build-configuration/
+/platform/switch/probe/build-play-session/
 /platform/switch/rust-probe/target/
 /platform/switch/probe/*.elf
 /platform/switch/probe/*.nacp

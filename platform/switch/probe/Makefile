@@ -85,6 +85,13 @@ BUILD := build-configuration
 APP_TITLE := CraftRustNX Configuration Probe
 APP_VERSION := 0.3.0
 DEFINES += -DCRAFTRUSTNX_CONFIGURATION_PROBE
+ifneq ($(strip $(PLAY_SESSION)),)
+TARGET := craftrustnx-play-session-probe
+BUILD := build-play-session
+APP_TITLE := CraftRustNX Play Session Probe
+APP_VERSION := 0.4.0
+DEFINES += -DCRAFTRUSTNX_PLAY_SESSION
+endif
 endif
 endif
 endif

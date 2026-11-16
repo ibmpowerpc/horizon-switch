@@ -1,6 +1,7 @@
 #ifndef CRAFTRUSTNX_LOGIN_PROBE_H
 #define CRAFTRUSTNX_LOGIN_PROBE_H
 #include "login_codec.h"
+#include "play_codec.h"
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -8,7 +9,7 @@
 enum lj_stage { LJ_IDLE, LJ_RESOLVING, LJ_CONNECTING, LJ_SENDING, LJ_RECEIVING,
     LJ_ACCEPTED, LJ_DISCONNECTED, LJ_AUTH_REQUIRED, LJ_UNSUPPORTED,
     LJ_ERROR, LJ_CANCELLED, LJ_KEY_EXCHANGE, LJ_CONFIGURING, LJ_PLAY_WAIT,
-    LJ_PLAY_PACKET_SEEN, LJ_ACTION_REQUIRED };
+    LJ_PLAY_PACKET_SEEN, LJ_ACTION_REQUIRED, LJ_PLAY_RECEIVING, LJ_PLAY_SESSION_OBSERVED };
 enum lj_error { LJ_ERR_NONE, LJ_ERR_ARGUMENT, LJ_ERR_DNS, LJ_ERR_CONNECT,
     LJ_ERR_TIMEOUT, LJ_ERR_SEND, LJ_ERR_RECV, LJ_ERR_EOF, LJ_ERR_PROTOCOL,
     LJ_ERR_CLOCK, LJ_ERR_CRYPTO, LJ_ERR_MEMORY, LJ_ERR_LIMIT };
@@ -37,6 +38,17 @@ struct lj_job {
     int32_t last_configuration_id;
     int32_t first_play_id;
     uint32_t first_play_body_bytes;
+    struct pl_state play;
+    uint32_t play_frames;
+    uint32_t play_bytes;
+    uint32_t teleports_acked;
+    uint32_t keepalives_replied;
+    uint32_t pongs_replied;
+    uint32_t chunk_frames;
+    uint32_t chunk_batches;
+    int32_t last_play_id;
+    int32_t last_chunk_x;
+    int32_t last_chunk_z;
     int32_t compression;
     uint32_t received_bytes;
     uint32_t frame_count;
@@ -48,6 +60,7 @@ struct lj_job {
  * only cancel/stage may be accessed while working. Result fields only after
  * acquiring a terminal stage. Join before reusing job/closing socket service.
  * Login variants stop at LoginFinished. Configuration build acknowledges it
- * and stops after the first framed play packet; no world payload is loaded. */
+ * and stops after the first framed play packet. Play-session build observes
+ * login, pose ACK, opaque chunk batch and keepalive. No world is loaded. */
 void lj_run(struct lj_job *job);
 #endif

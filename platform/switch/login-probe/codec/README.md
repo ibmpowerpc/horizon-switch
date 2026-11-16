@@ -1,18 +1,20 @@
-# Login and configuration codec (protocol 777)
+# Login, configuration and play codec (protocol 777)
 
-Bounded, allocation-free Rust codec for the login and configuration states of
-Java 26.3 (protocol 777), built as a `staticlib`
+Bounded, allocation-free Rust codec for the login, configuration and first play
+packets of Java 26.3 (protocol 777), built as a `staticlib`
 (`libcraftrustnx_login_codec.a`) for the CraftRustNX Switch login probe. The C
-ABI is exactly [`../include/login_codec.h`](../include/login_codec.h) and
-[`../include/configuration_codec.h`](../include/configuration_codec.h)
+ABI is exactly [`../include/login_codec.h`](../include/login_codec.h),
+[`../include/configuration_codec.h`](../include/configuration_codec.h) and
+[`../include/play_codec.h`](../include/play_codec.h)
 (read-only here); the C source-login worker, build scripts and hardware runs
 live beside it.
 
 It is a diagnostic only: it *describes* the exchange. It does not connect,
 resolve names, authenticate, send packets, store cookies, download resource
 packs, follow transfers, install registries or world data, accept a code of
-conduct, enter play, log or allocate. Everything is `no_std`, no floats,
-caller-owned buffers.
+conduct, enter play, log or allocate. Everything is `no_std`, caller-owned
+buffers; the play decoder does its own IEEE position arithmetic but never
+simulates a world.
 
 ```sh
 cargo test  --offline --locked            # host, ignored build dir
@@ -211,6 +213,61 @@ is the caller's job.
 `CF_BAD_FRAME -3`, `CF_UNSUPPORTED -5`. Every failure zeroes all 32 bytes of
 `cf_event` — padding included.
 
+## `craftrustnx_play_decode_body`
+
+Decodes **one** complete play body the caller already unframed and inflated
+through `craftrustnx_configuration_decode` in the play phase. The body starts
+with the packet ID, is `1..=8388608` bytes and is in memory already: this entry
+point never reads a frame prefix, inflates or buffers, so the crate keeps a
+single framing implementation. A reply, when there is one, is an **unframed**
+body of at most 1024 bytes for the caller to frame and cipher once.
+
+`struct pl_state` is 320 bytes (alignment 8, `char dimension[257]`); a new
+connection zero-initializes it. It changes only on success, written field by
+field so the struct's tail padding is never touched. `struct pl_event` is 32
+bytes; **every failure zeroes all of it** — padding included — and leaves both
+`state` and `reply` exactly as they were. Cap checks, null checks and reply
+capacity are all checked before any output or state write.
+
+| Wire ID | Kind | Validation / reply |
+|---|---|---|
+| 50 `Login` | `PL_LOGIN` | full body: player id, hardcore, `0..=256` level identifiers, non-negative max players/radius/simulation distance, `CommonPlayerSpawnInfo` (`OptVarInt` previous game type 0..=4, `Opt<GlobalPos>` = identifier + 8 packed bytes), online and secure-chat flags; game mode 0..=3; dimension ≤256 bytes (a longer *valid* identifier is `PL_UNSUPPORTED`). Installs player id, dimension type, game mode and the NUL-padded dimension name, sets `login_seen`, clears `position_seen`. No reply. |
+| 73 `PlayerPosition` | `PL_POSITION` | teleport `VarInt >= 0`, three `f64` position, three `f64` delta, `f32` yaw and pitch, big-endian relative flags; exact end; every number finite. Only `0x1ff` flag bits are accepted; deltas are never applied. X/Y, yaw or pitch relative bits need a prior absolute pose (`PL_UNSUPPORTED`). Resolves relative fields against the stored pose, stores raw IEEE bits, and replies `0` (AcceptTeleportation) + teleport + x/y/z `f64` + yaw/pitch `f32` — Java 26.3's full pose echo. |
+| 45 `KeepAlive` | `PL_KEEP_ALIVE` | exactly one long; reply `28` + the same 8 bytes |
+| 62 `Ping` | `PL_PING` | exactly one int; reply `45` + the same 4 bytes |
+| 21 `CookieRequest` | `PL_COOKIE` | identifier key, nothing else; reply `21` + the same key + `false` (nothing stored) |
+| 82 `ResourcePackPush` | `PL_RESOURCE_PACK` | UUID, URL, hash (≤40 units), required, optional prompt NBT (opaque but non-empty); reply `50` + UUID + `VarInt` 1 = **declined**; `flags` bit 0 mirrors `required`; nothing is downloaded |
+| 11 `ChunkBatchFinished` | `PL_BATCH_END` | non-negative declared size; reply `11` + `f32` 1.0 (a receipt, not a load) |
+| 12 `ChunkBatchStart` | `PL_BATCH_START` | empty body |
+| 46 `LevelChunkWithLight` | `PL_CHUNK` | x and z `i32` big-endian, then at least one payload byte; `value`/`aux` are the column x/z; chunk and light data stay opaque |
+| 32 `Disconnect` | `PL_DISCONNECT` | raw NBT payload, non-empty and opaque; not JSON-parsed |
+| 120 `StartConfiguration` | `PL_RECONFIGURE` | empty body |
+| 132 `Transfer` | `PL_TRANSFER` | non-empty host string and port `1..=65535`; reported, never followed |
+| 84 `Respawn` | `PL_RESPAWN` | reported as an unsupported continuation; body opaque, nothing simulated |
+| 0 `BundleDelimiter` | `PL_METADATA` | empty body |
+| every other 1..=143 | `PL_METADATA` | counters only (`packet_id`, `payload_offset/length`); the payload stays opaque: no registry load, no world install, no "ready" claim |
+| any other, incl. negative | — | `PL_UNSUPPORTED` (negative IDs are `PL_BAD_FRAME`) |
+
+`payload_offset`/`payload_length` locate the bytes after the packet ID in the
+body that was passed in. `value` is the teleport ID, the declared batch size or
+the chunk column x; `aux` is the chunk column z. The decoder never fabricates
+`PlayerLoaded`, `ClientTickEnd` or movement packets, and never claims a loaded
+world.
+
+### Safety contract
+
+Callers guarantee valid, aligned, non-overlapping `body`/`state`/`reply`/`event`
+regions and honest lengths. Null pointers and out-of-range lengths are checked
+before any slice is formed (`PL_BAD_ARGUMENT`), and a reply that does not fit
+1024 bytes or the caller's capacity is `PL_BAD_FRAME`/`PL_OUTPUT_SMALL` before a
+byte of it is written. Malformed input cannot panic: every read is
+bounds-checked and a panic aborts through the `#[panic_handler]`.
+
+### Status codes
+
+`PL_OK 0`, `PL_BAD_ARGUMENT -1`, `PL_OUTPUT_SMALL -2`, `PL_BAD_FRAME -3`,
+`PL_UNSUPPORTED -5`. There is no "need more": the body handed in is complete.
+
 ## Tests
 
 Unit tests exercise the C ABI functions directly (real `extern "C"` entry
@@ -239,14 +296,34 @@ points, not a re-implementation) and pin:
 - the 8 MiB body and 2 MiB frame caps rejected from the prefix/envelope before
   buffering or inflation, opaque metadata accepted but not parsed, play IDs
   reported, reply cap/capacity, and frame vectors byte-identical to
-  Python-`zlib`-verified stored-block streams at thresholds 0, 1 and above.
+  Python-`zlib`-verified stored-block streams at thresholds 0, 1 and above;
+- play vectors through the ABI: a complete `Login` with every optional field
+  (level list, previous game type, last death, both endings) and its installed
+  state with the tail padding untouched, a long dimension (`PL_UNSUPPORTED`),
+  out-of-range counts/distance/game mode/previous game mode, truncation and
+  trailing bytes, an absolute `PlayerPosition` acknowledged with the exact
+  teleport/position/yaw/pitch bytes, relative x/yaw added to the prior pose,
+  delta-only flags, a relative first teleport (`PL_UNSUPPORTED`), NaN/Inf and
+  overflowing relative sums, illegal flag bits, a short reply (`PL_OUTPUT_SMALL`
+  with the state unchanged), the keepalive/ping/batch/cookie/pack replies, the
+  chunk header and bundle delimiter, disconnect/reconfigure/transfer/respawn
+  events, opaque known IDs, an unknown ID and a negative ID, null/oversized
+  arguments and a malformed-input sweep.
 
 The crate was also checked by compiling and running a C program against the
 normative header and the built archive (`_Static_assert`s on the layout and
 enum values, request bytes, raw and compressed decode, corrupted trailers,
 need-more and null-argument paths): all checks pass.
 
-The 50 Rust tests (`cargo test --offline --locked`) pass; the release archive
+The 64 Rust tests (`cargo test --offline --locked`) pass; the release archive
 exports exactly `craftrustnx_login_start`, `craftrustnx_login_key`,
-`craftrustnx_login_decode`, `craftrustnx_configuration_decode` and
-`craftrustnx_configuration_frame`.
+`craftrustnx_login_decode`, `craftrustnx_configuration_decode`,
+`craftrustnx_configuration_frame` and `craftrustnx_play_decode_body`.
+
+The native play-session caller additionally validates login ordering, chunk-batch
+boundaries/counts and bundle completion. Pitch is clamped to [-90,90] after
+relative resolution, matching the inspected `position_packet_pitch` function.
+Optional previous game type is validated as raw code 0..4 before subtraction;
+malformed signed values, including i32::MIN, cannot overflow a debug decoder.
+Chunk credit 1.0 is a probe flow-control choice, not a measured load rate or a
+claim about vanilla's default. No PlayerLoaded or world simulation is generated.
