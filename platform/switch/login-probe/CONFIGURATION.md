@@ -12,6 +12,9 @@ preserves the hardware-tested encrypted-login probe. It uses the same offline
 profile and RSA/AES negotiation, without sending a session-service join. A
 server may accept or refuse the attempt under its own authentication rules.
 
+The hardware-tested 0.3.0 artifact still starts with an empty host. Subsequent
+builds use the shared editable host default `192.168.0.12`; X can change it.
+
 Run through hbmenu in Atmosphere. X edits host, Y port, L player name, A starts,
 B cancels, Plus exits after cleanup. Use the current Java LAN port; it changes
 when the world is reopened. The default CraftRustNX is the player name, not the

@@ -10,17 +10,18 @@ Hardware input and a C/Rust ABI probe have been tested on a real Switch Lite
 (2000 checks, zero errors). A project-local libc layout patch passes the
 compile-only ABI audit. All six checks in the isolated Rust std runtime probe
 passed on Switch Lite: allocation, time, main-thread TLS, thread spawn/join,
-mutex/condition-variable synchronization and worker TLS destructors. Graphics, sound and multiplayer
+mutex/condition-variable synchronization and worker TLS destructors. Graphics, sound and playable multiplayer
 on Switch remain to be implemented and tested.
 The isolated Java server status probe passed its host TCP fixtures, and the user
-confirmed `DONE` with a recognizable server response on Switch Lite. Login and
-gameplay remain unimplemented in the probe.
+confirmed `DONE` with a recognizable server response on Switch Lite. The status
+probe does not enter login or gameplay.
 The user also confirmed encrypted offline login acceptance on Switch Lite against
 a Java 26.3 LAN world: RSA/AES-CFB8, `LOGIN_ACCEPTED`, encryption active and no error.
 The diagnostic stops before configuration/play; no game world is displayed yet.
 A separate [configuration probe](platform/switch/login-probe/CONFIGURATION.md)
-passes host tests through the first opaque play packet; hardware confirmation
-is pending.
+also passed on Switch Lite: configuration acknowledged, 32 registry packets
+received opaquely and first play packet ID 50 received with no error. Registry
+interpretation, world loading and rendering remain unimplemented in the probe.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

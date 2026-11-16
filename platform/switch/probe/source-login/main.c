@@ -4,6 +4,7 @@
  * Centralized diagnostic labels can be localized with the future game UI.
  */
 #include "login_probe.h"
+#include "probe_defaults.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -137,9 +138,9 @@ int main(void) {
     const Result sock_init = socketInitializeDefault();
     const bool sockets_ok = R_SUCCEEDED(sock_init);
 
-    // Static job: host initially empty, port 25565, name CraftRustNX.
+    // Static job: host uses the shared editable default, port 25565, name CraftRustNX.
     static struct lj_job job = {
-        .host = "",
+        .host = CRAFTRUSTNX_DEFAULT_HOST,
         .name = "CraftRustNX",
         .port = 25565,
         .cancel = false,

@@ -1,6 +1,6 @@
 /* Native Nintendo Switch Java server STATUS probe: UI and worker thread.
  * libnx console/pad/swkb with static job and native Thread. Sockets initialized
- * once; all failures visible/released. Host initially empty, port 25565,
+ * once; all failures visible/released. Host uses the shared editable default, port 25565,
  * protocol 777. X edit host, Y port, A connect explicitly, B cancel, Plus exit.
  * UI stays responsive; edits/connect disabled while busy. Join/close thread
  * before reuse/exit. Show stages/errors/count and bounded sanitized raw JSON.
@@ -8,6 +8,7 @@
  * no files/credentials/login. Diagnostic labels centralized for localization.
  */
 #include "net_probe.h"
+#include "probe_defaults.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,9 +93,9 @@ int main(void) {
     const Result sock_init = socketInitializeDefault();
     const bool sockets_ok = R_SUCCEEDED(sock_init);
 
-    // Static job: host initially empty, port 25565, protocol 777.
+    // Static job: host uses the shared editable default, port 25565, protocol 777.
     static struct np_job job = {
-        .host = "",
+        .host = CRAFTRUSTNX_DEFAULT_HOST,
         .port = 25565,
         .protocol = 777,
         .cancel = false,
