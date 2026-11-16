@@ -545,3 +545,51 @@ registry/dimension и содержимого сетевых чанков.
 Сохранён переданный NRO 0.4.0 с прежней SHA256
 `c429b553268dff4395d76e1812b23ab57be6f6ff85021c6ae9e3e8428dd80dc4`.
 Повторной сборки или загрузок ради фиксации результата не выполнялось.
+
+## World Data Probe 0.5.0: host и сборка Switch
+
+2026-11-16 добавлен allocation-free Rust-разбор сетевого NBT, selected dimension/biome
+registry, heightmaps, секций, paletted containers, block-entity NBT и light data.
+Первый live-host запуск выявил ошибку в исходном задании: маски света были заданы
+как big-endian long array. Исправлено по protocol `buf::BitSet` и реальному
+26.3 обмену: VarInt byte length + low-byte-first BitSet bytes. Независимый
+литеральный regression vector проверяет этот формат. Временный перехваченный
+пакет для диагностики удалён; в git остаются только синтетические fixtures.
+
+Проверки: 103 Rust unit tests, fmt и clippy `-D warnings` проходят.
+Все 79 TCP-сценариев проходят: 19 login + 13 encrypted login + 12 configuration
++ 21 play + 14 world-data. Новые 14 world-data сценариев также проходят с C
+ASan/UBSan (`detect_leaks=0`, macOS); Rust/OpenSSL этой сборкой не инструментированы.
+Сценарии покрывают palette modes, bit masks, >64 KiB chunk body, неправильные
+heightmap/palette/light данные, отсутствующие registry и устаревший pose sample.
+Это независимые synthetic wire fixtures, не полный vanilla parity harness.
+
+Host runner с настоящим Java 26.3 LAN-миром завершился за 16.79 s:
+`WORLD_DATA_OBSERVED` (18), Error/codec/world status 0, encryption yes,
+configuration ACK yes, 32 registry packets. Сохранены 4 dimension entries и
+biome count 67; выбранная высота 384, min Y -64, skylight true. Проверены
+49 chunk columns, 1176 sections, 147 heightmaps, 78 block entities,
+147 sky layers и 164 block layers. Получен образец raw state ID 126 / biome ID 0
+под подтверждённой позицией, отправлены 1 pose ACK, 41 batch ACK и 1 keepalive reply.
+Отдельный LightUpdate в этом запуске не получен (0), но покрыт синтетическим
+TCP-сценарием. Адрес/порт, положение игрока и session UUID в запись не включены.
+Не реализованы block-name mapping, terrain cache, light propagation, renderer
+или PlayerLoaded. Результат host OpenSSL не заменяет аппаратный запуск Switch.
+
+`bash scripts/build-switch.sh docker world-data` успешно собрал Rust staticlib
+и native NRO без сети/загрузок в существующем образе. Артефакт
+`dist/switch/craftrustnx/craftrustnx-world-data-probe.nro`: 587973 bytes, SHA256
+`50f22eb400791946cbd22f637efe6e223d113254a41cc319525f7e02563ab9c5`,
+NRO0 / ASET / NACP title `CraftRustNX World Data Probe`, version `0.5.0`.
+ELF64 LE AArch64 DYN, нет DT_TEXTREL, все 592 dynamic relocations пишут
+в writable segments. Прежний NRO 0.4.0 сохранил свою SHA256.
+
+После проверки удалены только регенерируемый host debug target и object-файлы
+неудавшегося EGL-аудита. Сохранены NRO/ELF, release archives и отчёты.
+Артефакты около 473 MiB из 512; свободно около 15.3 GiB, резерв 10 GiB соблюдён.
+MTP на момент подготовки не обнаружен. Передача и аппаратный запуск 0.5.0 ожидаются.
+
+GPU: offline audit подтверждает installed SDK и работу UAM (512-byte DKSH из
+оригинального vertex shader). Выполнения GPU-кода на Switch, EGL acceleration
+или производительности это не подтверждает. Неоконченные материалы неудавшихся
+агентов изолированы в ignored tests/build и не включены в публичный аудит.

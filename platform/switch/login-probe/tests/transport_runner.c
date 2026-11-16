@@ -7,6 +7,8 @@
 
 _Static_assert(sizeof(struct pl_state) == 320, "play state ABI");
 _Static_assert(sizeof(struct pl_event) == 32, "play event ABI");
+_Static_assert(sizeof(struct wc_state) == 528, "world state ABI");
+_Static_assert(sizeof(struct wc_event) == 72, "world event ABI");
 static struct lj_job job;
 static void *run(void *unused) {
     (void)unused;
@@ -38,7 +40,7 @@ int main(int argc, char **argv) {
         atomic_store(&job.cancel, true);
         if (pthread_join(worker, NULL)) return 4;
     } else lj_run(&job);
-    printf("%d %d %d %d %d %d %u %u %u %u %d %d %u %u %u %u %u %d %u %u %u %d %u %u %u %u %u %u %u %d %u %u %d %d %d %d %d\n", atomic_load(&job.stage), job.error,
+    printf("%d %d %d %d %d %d %u %u %u %u %d %d %u %u %u %u %u %d %u %u %u %d %u %u %u %u %u %u %u %d %u %u %d %d %d %d %d", atomic_load(&job.stage), job.error,
         job.system_error, job.resolver_error, job.codec_error, job.compression,
         job.received_bytes, job.frame_count, job.server_requested_auth,
         job.encryption_active, job.crypto_error, job.crypto_detail,
@@ -49,6 +51,18 @@ int main(int argc, char **argv) {
         job.teleports_acked, job.keepalives_replied, job.pongs_replied, job.chunk_frames,
         job.chunk_batches, job.last_play_id, job.play.login_seen, job.play.position_seen,
         job.play.player_id, job.play.game_mode, job.play.teleport_id, job.last_chunk_x, job.last_chunk_z);
+    const int32_t type = job.play.dimension_type;
+    const struct wc_dimension *dimension = type >= 0 && type < WC_MAX_DIMENSIONS &&
+        (uint32_t)type < job.world.dimension_count ? &job.world.dimensions[type] : NULL;
+    printf(" %d %u %u %u %u %u %u %u %u %u %u %d %d %d %d %d %d %d %u\n",
+        job.world_error, job.world.dimension_count, job.world.biome_count,
+        job.validated_chunks, job.validated_light_updates, job.validated_sections,
+        job.validated_heightmaps, job.validated_block_entities, job.validated_sky_layers,
+        job.validated_block_layers, job.world_sample.sample_valid,
+        job.world_sample.sample_x, job.world_sample.sample_y, job.world_sample.sample_z,
+        job.world_sample.state_id, job.world_sample.biome_id,
+        dimension ? dimension->min_y : 0, dimension ? dimension->height : 0,
+        dimension ? dimension->has_skylight : 0);
     for (size_t i = 0; i < sizeof(job.event.uuid); ++i) printf("%02x", job.event.uuid[i]);
     putchar('\n');
     for (size_t i = 0; i < sizeof(job.event.session); ++i) printf("%02x", job.event.session[i]);

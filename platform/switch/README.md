@@ -155,3 +155,14 @@ Pose ACK, keepalive, opaque chunk и batch ACK. Возможна пауза ок
 На Switch Lite этот этап прошёл: `PLAY_SESSION_OBSERVED`, Error `NONE`,
 1 Pose ACK, 49 opaque chunks, 41 batch ACK и 1 keepalive. Подробности —
 [PLAY-SESSION.md](login-probe/PLAY-SESSION.md).
+
+## Структурный разбор данных мира
+
+`bash scripts/build-switch.sh docker world-data` собирает отдельный
+**CraftRustNX World Data Probe 0.5.0**. Rust разбирает NBT, выбранные registry,
+секции чанков, палитры и слои света. Ожидается `WORLD_DATA_OBSERVED`,
+`Error: NONE`, checked chunks/sections больше нуля и образец state/biome ID
+под игроком. Адрес по умолчанию — `192.168.0.12`; порт вводится через Y.
+Проверка с настоящим Java 26.3 сервером с компьютера прошла; аппаратный запуск
+0.5.0 пока ожидается. Это ещё не загрузка мира или рендер; PlayerLoaded не отправляется.
+Подробности — [WORLD-DATA.md](login-probe/WORLD-DATA.md).

@@ -91,6 +91,13 @@ BUILD := build-play-session
 APP_TITLE := CraftRustNX Play Session Probe
 APP_VERSION := 0.4.0
 DEFINES += -DCRAFTRUSTNX_PLAY_SESSION
+ifneq ($(strip $(WORLD_DATA)),)
+TARGET := craftrustnx-world-data-probe
+BUILD := build-world-data
+APP_TITLE := CraftRustNX World Data Probe
+APP_VERSION := 0.5.0
+DEFINES += -DCRAFTRUSTNX_WORLD_DATA
+endif
 endif
 endif
 endif

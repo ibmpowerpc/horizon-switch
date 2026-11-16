@@ -30,11 +30,14 @@ pub mod configuration_ffi;
 pub mod decode;
 pub mod encode;
 pub mod md5;
+pub mod nbt;
 pub mod play;
 pub mod wire;
+pub mod world;
 
 pub mod ffi;
 pub mod play_ffi;
+pub mod world_ffi;
 
 pub use configuration::{
     decode_configuration_frame, encode_client_frame, CfEvent, CF_BAD_ARGUMENT, CF_BAD_FRAME,
@@ -54,6 +57,12 @@ pub use play::{
     PL_TRANSFER, PL_UNSUPPORTED,
 };
 pub use play_ffi::craftrustnx_play_decode_body;
+pub use world::{
+    decode_world_body, WcDimension, WcEvent, WcState, WorldDecoded, WorldError, WC_BAD_ARGUMENT,
+    WC_BAD_FRAME, WC_BIOMES, WC_CHUNK, WC_CONFIGURATION, WC_DIMENSIONS, WC_LIGHT, WC_LIMIT,
+    WC_MAX_BODY, WC_MAX_DIMENSIONS, WC_MAX_SECTIONS, WC_METADATA, WC_OK, WC_PLAY, WC_UNSUPPORTED,
+};
+pub use world_ffi::craftrustnx_world_decode_body;
 
 /// Protocol version this codec pins: Java 26.3.
 pub const PROTOCOL: i32 = 777;

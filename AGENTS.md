@@ -271,6 +271,16 @@ Upstream issue-claim and PR workflows apply when contributing upstream; the user
 has authorized direct integration into this fork's main. Do not post upstream
 issues or comments without an explicit user request.
 
+## Implementation priorities
+
+Prioritize runtime performance and compatibility with Minecraft Java servers.
+Prefer Rust for the application, protocol, world data, simulation, UI and renderer
+integration, preserving Horizon's Rust architecture. Small C/C++ shims around
+libnx or the native graphics SDK are acceptable where they provide a practical
+performance or compatibility benefit. Existing standalone C bring-up probes do
+not prescribe the final client architecture. Keep verified protocol behavior
+covered while changing platform implementations.
+
 # Workspace constraints
 
 ## Disk space

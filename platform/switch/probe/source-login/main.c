@@ -12,7 +12,9 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
-#if defined(CRAFTRUSTNX_PLAY_SESSION)
+#if defined(CRAFTRUSTNX_WORLD_DATA)
+static const char *LABEL_TITLE = "CraftRustNX: Structured World Data Probe";
+#elif defined(CRAFTRUSTNX_PLAY_SESSION)
 static const char *LABEL_TITLE = "CraftRustNX: Play Session Probe";
 #elif defined(CRAFTRUSTNX_CONFIGURATION_PROBE)
 static const char *LABEL_TITLE = "CraftRustNX: Configuration to First Play Packet";
@@ -47,17 +49,40 @@ static const char *LABEL_DECODED = "Decoded configuration/play bytes: %" PRIu32 
 static const char *LABEL_FIRST_PLAY = "First play packet: id=%" PRId32 " body=%" PRIu32 " bytes\n";
 static const char *LABEL_PACK_DECLINED = "Resource pack declined%s.\n";
 static const char *LABEL_PACK_REQUIRED = " (required by server)";
+#ifdef CRAFTRUSTNX_WORLD_DATA
+static const char *LABEL_OPAQUE = "Registry/chunk structure checked; no world loaded.";
+#else
 static const char *LABEL_OPAQUE = "Metadata is opaque. No registries or world loaded.";
+#endif
 #endif
 
 #ifdef CRAFTRUSTNX_PLAY_SESSION
 static const char *LABEL_PLAY_COUNTS = "Play packets: %" PRIu32 " | decoded bytes: %" PRIu32 "\n";
 static const char *LABEL_PLAY_REPLIES = "Pose ACKs: %" PRIu32 " | keepalive: %" PRIu32 " | pong: %" PRIu32 "\n";
+#ifdef CRAFTRUSTNX_WORLD_DATA
+static const char *LABEL_CHUNKS = "Received chunks: %" PRIu32 " | batch ACKs: %" PRIu32 " | last: %" PRId32 ",%" PRId32 "\n";
+#else
 static const char *LABEL_CHUNKS = "Opaque chunks: %" PRIu32 " | batch ACKs: %" PRIu32 " | last: %" PRId32 ",%" PRId32 "\n";
+#endif
 static const char *LABEL_DIMENSION = "Dimension:";
 static const char *LABEL_ENTITY = "Entity: %" PRId32 " | game mode: %" PRId32 " | last play ID: %" PRId32 "\n";
 static const char *LABEL_POSE = "Position: %.3f %.3f %.3f | angles: %.1f %.1f\n";
+#ifdef CRAFTRUSTNX_WORLD_DATA
+static const char *LABEL_NOT_READY = "No terrain installed; PlayerLoaded was not sent.";
+#else
 static const char *LABEL_NOT_READY = "No terrain validated; PlayerLoaded was not sent.";
+#endif
+#endif
+
+#ifdef CRAFTRUSTNX_WORLD_DATA
+static const char *LABEL_WORLD_ERROR = " (world codec: %" PRId32 ")";
+static const char *LABEL_WORLD_REGISTRIES = "Dimension entries: %" PRIu32 " | biome entries: %" PRIu32 "\n";
+static const char *LABEL_WORLD_SHAPE = "World min Y: %" PRId32 " | height: %" PRId32 " | skylight: %s\n";
+static const char *LABEL_WORLD_CHUNKS = "Checked chunks: %" PRIu32 " | sections: %" PRIu32 " | heightmaps: %" PRIu32 "\n";
+static const char *LABEL_WORLD_LIGHT = "Light updates: %" PRIu32 " | sky layers: %" PRIu32 " | block layers: %" PRIu32 "\n";
+static const char *LABEL_WORLD_SAMPLE = "Block below pose (%" PRId32 ",%" PRId32 ",%" PRId32 "): state ID %" PRId32 " | biome ID %" PRId32 "\n";
+static const char *LABEL_WORLD_NO_SAMPLE = "Matching chunk sample not received.";
+static const char *LABEL_WORLD_LIMIT = "Raw IDs only; no block names, terrain cache or renderer.";
 #endif
 
 static const char *stage_name(enum lj_stage stage) {
@@ -72,6 +97,7 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_PLAY_WAIT: return "WAITING_FOR_PLAY_PACKET";
     case LJ_PLAY_RECEIVING: return "OBSERVING_PLAY_SESSION";
     case LJ_PLAY_SESSION_OBSERVED: return "PLAY_SESSION_OBSERVED";
+    case LJ_WORLD_DATA_OBSERVED: return "WORLD_DATA_OBSERVED";
     case LJ_PLAY_PACKET_SEEN: return "PLAY_PACKET_SEEN";
     case LJ_ACTION_REQUIRED: return "USER_ACTION_REQUIRED";
     case LJ_ACCEPTED: return "LOGIN_ACCEPTED";
@@ -89,7 +115,7 @@ static bool terminal_stage(int stage) {
         stage == LJ_AUTH_REQUIRED || stage == LJ_UNSUPPORTED ||
         stage == LJ_ERROR || stage == LJ_CANCELLED ||
         stage == LJ_PLAY_PACKET_SEEN || stage == LJ_ACTION_REQUIRED ||
-        stage == LJ_PLAY_SESSION_OBSERVED;
+        stage == LJ_PLAY_SESSION_OBSERVED || stage == LJ_WORLD_DATA_OBSERVED;
 }
 
 static const char *error_name(enum lj_error error) {
@@ -335,6 +361,9 @@ int main(void) {
                 if (job.crypto_error != 0)
                     printf(" (crypto: %d, detail: 0x%08x)", job.crypto_error, (unsigned)job.crypto_detail);
             }
+#ifdef CRAFTRUSTNX_WORLD_DATA
+            if (job.world_error != WC_OK) printf(LABEL_WORLD_ERROR, job.world_error);
+#endif
             printf("\x1b[K\n");
 
             printf("%s %" PRId32 "\x1b[K\n", LABEL_COMPRESSION, job.compression);
@@ -373,6 +402,25 @@ int main(void) {
                 printf(LABEL_POSE, position[0], position[1], position[2], (double)yaw, (double)pitch);
             }
             puts(LABEL_NOT_READY);
+#endif
+
+#ifdef CRAFTRUSTNX_WORLD_DATA
+            printf(LABEL_WORLD_REGISTRIES, job.world.dimension_count, job.world.biome_count);
+            const int32_t type = job.play.dimension_type;
+            if (job.play.login_seen && type >= 0 && type < WC_MAX_DIMENSIONS &&
+                (uint32_t)type < job.world.dimension_count && job.world.dimensions[type].valid) {
+                const struct wc_dimension *dimension = &job.world.dimensions[type];
+                printf(LABEL_WORLD_SHAPE, dimension->min_y, dimension->height,
+                    dimension->has_skylight ? "yes" : "no");
+            }
+            printf(LABEL_WORLD_CHUNKS, job.validated_chunks, job.validated_sections, job.validated_heightmaps);
+            printf(LABEL_WORLD_LIGHT, job.validated_light_updates, job.validated_sky_layers, job.validated_block_layers);
+            if (job.world_sample.sample_valid) {
+                const struct wc_event *sample = &job.world_sample;
+                printf(LABEL_WORLD_SAMPLE, sample->sample_x, sample->sample_y, sample->sample_z,
+                    sample->state_id, sample->biome_id);
+            } else puts(LABEL_WORLD_NO_SAMPLE);
+            puts(LABEL_WORLD_LIMIT);
 #endif
 
             if (job.login_accepted) {

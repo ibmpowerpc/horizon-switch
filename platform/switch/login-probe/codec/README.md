@@ -268,6 +268,132 @@ bounds-checked and a panic aborts through the `#[panic_handler]`.
 `PL_OK 0`, `PL_BAD_ARGUMENT -1`, `PL_OUTPUT_SMALL -2`, `PL_BAD_FRAME -3`,
 `PL_UNSUPPORTED -5`. There is no "need more": the body handed in is complete.
 
+## NBT structural scanner (`nbt`, Rust only)
+
+`src/nbt.rs` is the groundwork for the dimension registry and chunk decode: a
+bounded, allocation-free walk over Java's **network** NBT form, where a value is
+one tag type byte plus that tag's payload and has **no** root name
+(`NbtIo.readAnyTag`). It has no C ABI yet — no export and no header change — so
+the C worker is unaffected.
+
+```rust
+skip_unnamed(input: &[u8], limits: Limits) -> Result<usize, NbtError>
+RootView::parse(input: &[u8], limits: Limits) -> Result<RootView, NbtError>
+```
+
+`skip_unnamed` consumes exactly one root value and returns how many leading
+bytes it used; a root `End` is one byte. Bytes after the value — the rest of a
+packet — are never read or charged to the byte limit, so a caller can continue
+with `&input[consumed..]`.
+
+`RootView` borrows that same value and exposes only the root compound's **direct**
+members: `fields()` iterates `Field { name, value }` pairs in wire order with
+duplicates kept, and `find`/`find_i32`/`find_byte` look one up by raw name bytes
+with vanilla's map semantics (**last** duplicate wins). A nested member with the
+same name is never matched. `TagView` is `(type_id, payload)` with `payload()`
+the exact payload bytes of that value (no type byte, no name) and typed getters
+`as_byte`/`as_i32` (big-endian) — enough for `min_y`, `height` and
+`has_skylight` without building a tree.
+
+Wire rules followed: types 0..12 with `End` terminating a compound; big-endian
+fixed-width scalars; strings and names `u16`-byte-length + bytes; lists a type
+byte + `i32` count; byte/int/long arrays a signed `i32` count. Names and string
+values stay **raw Java modified UTF-8 bytes**: overlong NUL (`c0 80`), unpaired
+surrogates and NUL bytes are preserved, never decoded or validated. Floats and
+doubles are skipped as bits. 26.3's mixed-list wrapper (a one-member compound
+with an empty name inside a `List`) is structurally ordinary NBT and is not given
+an extra type.
+
+Limits (`Limits`, clamped to the hard caps by `Limits::clamped`): at most
+**8 MiB** consumed, nesting depth **128** (root container at depth 0), and
+**65,536** tags with list elements counted individually. Work is iterative over
+an explicit 128-entry stack under 1 KiB of stack state, with no recursion and no
+allocation; primitive lists and arrays are skipped with one checked
+`count * width` bounds test instead of a per-element walk. `NbtError`
+distinguishes `Truncated` (bytes missing), `Invalid` (unknown type, negative
+length, a non-empty list without an element type, length overflow) and `Limit`
+(a caller budget exhausted), each with the input offset.
+
+## World data decoder (`world`, C ABI)
+
+`src/world.rs` keeps the selected configuration registries and validates the
+26.3 chunk and light wire data; `src/world_ffi.rs` is exactly
+[`../include/world_codec.h`](../include/world_codec.h). It adds one export,
+`craftrustnx_world_decode_body`, and the 528-byte `struct wc_state` (four
+counters and 32 × `wc_dimension`, align 4) and 72-byte `struct wc_event`
+(align 4). It reuses the NBT scanner and the wire `Reader`, allocates nothing,
+recurses nowhere and keeps `unsafe` inside the FFI module.
+
+```c
+int32_t craftrustnx_world_decode_body(const uint8_t *body, uint32_t length,
+    uint32_t phase, struct wc_state *state, const struct pl_state *play,
+    struct wc_event *event);
+```
+
+**Configuration `RegistryData` (id 7).** Every entry is
+`identifier, bool data, unnamed NBT`, and every NBT value is walked even for
+opaque registries. Only `minecraft:dimension_type` and
+`minecraft:worldgen/biome` are retained; any other registry (or a non-
+`minecraft` namespace) is `WC_METADATA` with its entry count. A selected entry
+without data is `WC_UNSUPPORTED`. Dimension roots must be compounds with direct
+`min_y` (int), `height` (int) and `has_skylight` (byte): `min_y % 16 == 0`,
+`0 < height <= 4096`, `height % 16 == 0` and `min_y + height` must not
+overflow; the table index is the entry order and `has_skylight` is kept as the
+zero-extended byte. More than 32 dimension or 65,536 biome entries is
+`WC_UNSUPPORTED`. Identifiers are borrowed, never copied.
+
+**Play `LevelChunkWithLight` (46).** x/z are big-endian ints and the packet
+needs a selected `pl_state.dimension_type` plus a retained biome count. The
+heightmap count is `<= 16`; each kind is non-negative and its long array count
+must equal `storage_len(ceil_log2(height + 1), 256)`, with every packed value
+`<= height` and the bits past value 256 treated as padding. The chunk buffer is
+a `VarInt`-length byte slice that must end exactly after `height / 16` sections;
+a section is two big-endian signed shorts (`0..=4096`) and two paletted
+containers. Containers have **no long-count prefix**: one wire bit width, the
+local palette when the strategy uses one, then exactly `storage_len(bits,
+entries)` big-endian longs. Blocks: 0 is one value, 1..=4 normalise to four
+bits with a local palette, 5..=8 keep the wire width with a local palette, and
+9..=32 are global with the wire width. Biomes: 0 is one value, 1..=3 are local,
+otherwise the width is `max(wire, ceil_log2(biome_count))`, at most 32. Palette
+counts are `1..=2^bits`, palette ids are non-negative, every cell's local index
+is inside the palette, global block ids are `<= i32::MAX` and every biome id is
+below the retained count. Block-state names are not installed, so a global block
+palette has no registry-width cross-check. Then follow `<= 4096` block entities
+(packed xz byte, short y, non-negative `VarInt` type, bounded unnamed NBT with
+`End` allowed) whose y must be inside the dimension, and the light data.
+
+**Light.** Four `BitSet`s use `ByteBufCodecs.BIT_SET`: a `VarInt` byte length
+of at most `ceil((sections + 2) / 8)`, then Java `BitSet.toByteArray` bytes
+(low bit and low byte first), with no bit at or past `sections + 2`. Present and empty masks must not overlap for the same kind.
+The sky and block layer counts must equal the masks' population counts, and each
+layer is a `VarInt` length of exactly 2048 bytes. The packet ends exactly.
+`LightUpdate` (49) is x/z `VarInt`s plus the same light data.
+
+**Sample.** When `pl_state` has an acknowledged pose, the chunk packet resolves
+the block **below** it (finite `f64` bits, a checked integer floor without
+`std`/`libm`, checked `y - 1`): only for the matching chunk column and inside
+the dimension does it report `sample_x/y/z`, the raw `state_id` and the raw
+`biome_id` at the local coordinates. There are no block or biome names.
+Otherwise `sample_valid` is 0. `wc_event` reports the chunk x/z, sections,
+heightmap and block-entity counts, provided sky/block layer counts and the sums
+of the section `non_empty` and `fluids` headers.
+
+**Failure.** State is built aside as a 528-byte copy and committed only on
+success; every `wc_event` byte is zero on failure. Bad pointers, lengths,
+phase or nulls are `WC_BAD_ARGUMENT`, a malformed body is `WC_BAD_FRAME`, a
+valid but unsupported registry/palette/entity cap is `WC_UNSUPPORTED`, and an
+exhausted NBT budget is `WC_LIMIT`. Other packet ids stay opaque metadata.
+
+The decoder adds 20 tests (103 with the existing 83): hand-built dimension and
+biome registries, opaque-registry NBT walking and its tag-budget `WC_LIMIT`,
+dimension field/bounds/overflow validation and the unsupported-table path, all
+block and biome palette modes (including the no-prefix layout and palette bounds),
+the two signed shorts, heightmap width/value/padding/count rules, light mask
+range/overlap/layer-count/2048-byte lengths, positive and negative sample
+coordinates, no-pose/other-column/outside/NaN samples, block-entity bounds,
+`LightUpdate`, every strict prefix of a chunk and registry body, VarInt overflow,
+trailing bytes, the ABI statuses and the transactional state/event bytes.
+
 ## Tests
 
 Unit tests exercise the C ABI functions directly (real `extern "C"` entry
@@ -308,17 +434,27 @@ points, not a re-implementation) and pin:
   with the state unchanged), the keepalive/ping/batch/cookie/pack replies, the
   chunk header and bundle delimiter, disconnect/reconfigure/transfer/respawn
   events, opaque known IDs, an unknown ID and a negative ID, null/oversized
-  arguments and a malformed-input sweep.
+  arguments and a malformed-input sweep;
+- the NBT scanner: hand-assembled network vectors for all twelve tag types
+  (including an empty list that names no element type), nested compounds and
+  lists, a root `End`, trailing packet bytes, every strict prefix of four
+  vectors as `Truncated`, negative and `i32::MAX` lengths, unknown types and
+  bad list headers, the byte/depth/tag caps at their exact boundaries, duplicate
+  and nested field names, big-endian `min_y`/`height` and byte `has_skylight`,
+  raw `c0 80`/surrogate/NUL name and string bytes, a mixed-list wrapper, and a
+  pseudo-random plus bit-flip sweep that must not panic.
 
 The crate was also checked by compiling and running a C program against the
 normative header and the built archive (`_Static_assert`s on the layout and
 enum values, request bytes, raw and compressed decode, corrupted trailers,
 need-more and null-argument paths): all checks pass.
 
-The 64 Rust tests (`cargo test --offline --locked`) pass; the release archive
+The 103 Rust tests (`cargo test --offline --locked`: the 64 below the NBT
+module, 19 for it and 20 for the world decoder) pass; the release archive
 exports exactly `craftrustnx_login_start`, `craftrustnx_login_key`,
 `craftrustnx_login_decode`, `craftrustnx_configuration_decode`,
-`craftrustnx_configuration_frame` and `craftrustnx_play_decode_body`.
+`craftrustnx_configuration_frame`, `craftrustnx_play_decode_body` and
+`craftrustnx_world_decode_body`.
 
 The native play-session caller additionally validates login ordering, chunk-batch
 boundaries/counts and bundle completion. Pitch is clamped to [-90,90] after

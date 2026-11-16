@@ -28,6 +28,10 @@ keep-alive replies, and completed that exchange with the user's real Java 26.3
 LAN world from the host and on Switch Lite: pose acknowledged, 49 opaque chunks,
 41 batch acknowledgements and a keep-alive reply, without error. It sends no
 PlayerLoaded and does not implement playable multiplayer or world rendering.
+The [world-data probe](platform/switch/login-probe/WORLD-DATA.md) now validates
+NBT, selected dimension/biome registries, chunk sections, palettes and light wire
+structure in Rust. Host tests and a real Java 26.3 LAN connection passed with
+49 checked chunks and a block-state sample. Its Switch hardware run is pending.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

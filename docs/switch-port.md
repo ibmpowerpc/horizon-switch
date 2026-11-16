@@ -114,3 +114,25 @@ Offline-режим профиля не отменяет требования ups
 Файлы и ассеты Minecraft в этот репозиторий не включены. Способ подготовки данных
 из пользовательской установки и сохранение авторизации Horizon нужно определить
 на этапе интеграции.
+
+## Performance, compatibility and implementation language
+
+Runtime performance and Minecraft Java-server compatibility take precedence.
+The intended client remains primarily Rust, reusing Horizon's architecture.
+Application logic, protocol/world decoding, simulation, UI and renderer integration
+should stay in Rust where practical. A small native C/C++ SDK bridge is acceptable
+when it makes the Switch path faster or more compatible. The C hardware/network
+probes are platform experiments, not a decision to rewrite the client in C.
+Backend choices need Switch measurements; an installed library or host compile
+alone does not establish performance or Java protocol compatibility.
+
+## Structured world-data milestone
+
+The separate 0.5.0 diagnostic adds no_std Rust NBT scanning and structural
+registry/chunk/light decoding, keeping the existing C SDK bridge. Its host
+connection to the user's Java 26.3 world checked 49 columns and 1176 sections
+and resolved a raw block-state/biome sample below the acknowledged pose.
+The Switch run is pending; this does not install terrain or justify PlayerLoaded.
+Next work needs a retained world representation and a measured GPU path.
+The [offline GPU inventory](switch-gpu-path-audit.md) confirms installed deko3d,
+UAM and EGL/GLES libraries, but no native GPU rendering or acceleration is proven.
