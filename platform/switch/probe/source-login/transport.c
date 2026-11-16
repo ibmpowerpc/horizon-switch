@@ -242,7 +242,35 @@ static int world_step(struct lj_job *job, const struct cipher_state *cipher,
         job->validated_sections += event.sections;
         job->validated_heightmaps += event.heightmaps;
         job->validated_block_entities += event.block_entities;
-        if (event.sample_valid) job->world_sample = event;
+        if (event.sample_valid) {
+            job->world_sample = event;
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+            job->column_sample_match = 0;
+            job->column_error = craftrustnx_column_copy(cipher->configuration_body,
+                body_length, &job->world, &job->play, job->column_blocks,
+                COL_MAX_BLOCKS, job->column_biomes, COL_MAX_BIOMES, &job->column);
+            if (job->column_error == COL_UNSUPPORTED) return LJ_UNSUPPORTED;
+            if (job->column_error != COL_OK) {
+                job->error = job->column_error == COL_LIMIT ? LJ_ERR_LIMIT : LJ_ERR_PROTOCOL;
+                return -1;
+            }
+            const int64_t local_y = (int64_t)event.sample_y - job->column.min_y;
+            if (local_y < 0 || local_y >= (int64_t)job->column.sections * 16) {
+                job->error = LJ_ERR_PROTOCOL;
+                return -1;
+            }
+            const uint32_t x = (uint32_t)event.sample_x & 15;
+            const uint32_t z = (uint32_t)event.sample_z & 15;
+            const uint32_t block = (uint32_t)local_y * 256 + z * 16 + x;
+            const uint32_t biome = ((uint32_t)local_y / 4) * 16 + (z / 4) * 4 + x / 4;
+            job->column_sample_match = job->column_blocks[block] == (uint32_t)event.state_id &&
+                job->column_biomes[biome] == (uint32_t)event.biome_id;
+            if (!job->column_sample_match) {
+                job->error = LJ_ERR_PROTOCOL;
+                return -1;
+            }
+#endif
+        }
     } else if (event.kind == WC_LIGHT) {
         ++job->validated_light_updates;
     }
@@ -300,6 +328,10 @@ static int play_step(struct lj_job *job, int fd, struct cipher_state *cipher,
 #ifdef CRAFTRUSTNX_WORLD_DATA
         // A previous chunk sample no longer describes the acknowledged pose.
         job->world_sample.sample_valid = 0;
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+        memset(&job->column, 0, sizeof(job->column));
+        job->column_sample_match = 0;
+#endif
 #endif
         ++job->teleports_acked;
         break;
@@ -345,8 +377,13 @@ static int play_step(struct lj_job *job, int fd, struct cipher_state *cipher,
         !cipher->chunk_batch_open && !cipher->bundle_open) {
 #ifdef CRAFTRUSTNX_WORLD_DATA
         if (job->world.dimensions_seen && job->world.biomes_seen &&
-            job->validated_chunks && job->world_sample.sample_valid)
+            job->validated_chunks && job->world_sample.sample_valid) {
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+            if (job->column.sections && job->column_sample_match) return LJ_COLUMN_SNAPSHOT;
+#else
             return LJ_WORLD_DATA_OBSERVED;
+#endif
+        }
 #else
         return LJ_PLAY_SESSION_OBSERVED;
 #endif
@@ -477,6 +514,9 @@ void lj_run(struct lj_job *job) {
     job->validated_block_entities = 0;
     job->validated_sky_layers = 0;
     job->validated_block_layers = 0;
+    memset(&job->column, 0, sizeof(job->column));
+    job->column_error = 0;
+    job->column_sample_match = 0;
     job->compression = -1;
     job->received_bytes = 0;
     job->frame_count = 0;

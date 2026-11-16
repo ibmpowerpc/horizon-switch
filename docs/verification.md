@@ -683,3 +683,46 @@ deko3d, изменения uniforms/палитры, паузы/сброса и �
 Повторная сборка для фиксации результата не выполнялась. Это standalone
 serialized triangle smoke test; Horizon/wgpu, depth/mesh/texture pipeline,
 рендер сетевого мира и окончательный backend ещё не проверены.
+
+## Column Snapshot Probe 0.7.0: интеграция
+
+2026-11-17 завершены Rust column copy и интеграция с отдельной сетевой пробой.
+Сохранена общая реализация chunk/palette parser: validating pass без записи,
+проверка ёмкости, затем copy pass в caller-owned u32 arrays. В snapshot
+сохраняется колонка под подтверждённой позицией; образец из массивов сверяется
+с world decoder sample. Новая коррекция позы инвалидирует selection. Данные
+остаются в памяти после закрытия соединения, но это snapshot принятого пакета,
+а не cache с block/light updates. PlayerLoaded не отправляется.
+
+Parent verification: 109 Rust tests, fmt и clippy `-D warnings` проходят.
+Дополнительно исправлен overlong palette vector в новом regression test.
+93 TCP-сценария проходят: 19 login, 13 encrypted, 12 configuration, 21 play,
+14 world-data и 14 column-snapshot. Snapshot runner собран с C ASan/UBSan
+(macOS detect_leaks=0), stderr проверяется fixtures. Независимые FNV-style
+word digests сверяют все state/biome cells; сами данные реального мира
+не сохраняются в git. Rust/OpenSSL не инструментированы этой C сборкой.
+
+Попытка live-host подключения к прежнему endpoint завершилась через 30 s:
+stage 9 / timeout 4, encryption 0, chunks 0. Login не достигнут; это не
+положительный live результат новой пробы. Запрошены актуальные IP/порт мира.
+
+Новая сборка `bash scripts/build-switch.sh docker column-snapshot` прошла
+в существующем образе без загрузок. Большой static job переведён в BSS с
+явной инициализацией небольших настроек при старте; это устранило zero-filled
+4 MiB arrays из NRO data. Проверяющий инструмент исправлен: SHT_NOBITS/BSS
+не читается как file-backed section. Прежние 0.4/0.5/0.6 артефакты также
+проходят обновлённую проверку и сохраняют прежние SHA256.
+
+Итоговый `craftrustnx-column-snapshot-probe.nro`: 465093 bytes, SHA256
+`c10178bb5623d804e577398f33e6b619fb0ae8947d9d5a46ac2503007e6c3f16`,
+NRO0/ASET/NACP title `CraftRustNX Column Snapshot Probe`, version 0.7.0;
+ELF64 LE AArch64 DYN, нет DT_TEXTREL; все 596 dynamic relocations в writable
+segments. Снимок максимум 256 секций требует 4.0625 MiB статических массивов
+в памяти; 384-high column использует 390 KiB полезного output.
+
+После агента experiment budget превысил лимит (515.6 MiB). До дальнейших
+сборок удалён только redundant codec/target, затем host debug artifacts после
+проверки; исправлены/заменены oversized промежуточные файлы новой 0.7 сборки.
+NRO/ELF предыдущих проб и отчёты сохранены. Итог около 485.6 MiB/512,
+свободно около 15.5 GiB; toolchain/dependencies/images не загружались.
+Передача 0.7.0 по MTP и аппаратная проверка ещё ожидаются.

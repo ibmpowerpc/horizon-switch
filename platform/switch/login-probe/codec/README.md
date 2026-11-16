@@ -463,3 +463,27 @@ Optional previous game type is validated as raw code 0..4 before subtraction;
 malformed signed values, including i32::MIN, cannot overflow a debug decoder.
 Chunk credit 1.0 is a probe flow-control choice, not a measured load rate or a
 claim about vanilla's default. No PlayerLoaded or world simulation is generated.
+
+## Normalized column copy (Rust + C ABI)
+
+`column.rs` / `column_ffi.rs` implement `craftrustnx_column_copy` from
+`include/column_codec.h`. The existing world parser now shares a bounded cell
+sink for sampling, validation and full output; it is not a second wire parser.
+The first pass validates the complete play46 packet (including heightmaps,
+NBT and light) without output writes. After capacity checks, the second pass
+normalizes single/local/global palettes into caller-owned u32 arrays. Both
+passes read identical immutable inputs. No allocation, SDK call or persistence.
+
+The 24-byte `col_info` reports chunk x/z, min Y, sections and used element counts.
+Output order is bottom-up sections, then Y/Z/X: 4096 block states and 64 biome
+cells per section. Only used prefixes are written. Statuses 0/-1/-2/-3/-5/-6
+mean success/argument/short output/malformed/unsupported/NBT budget. On failure
+info is zero, arrays and input states unchanged. Pointer validity, alignment and
+non-overlap are caller contracts. Maximum arrays are 256 sections; only raw IDs
+are produced, with no air, opacity, block name or readiness semantics.
+
+Parent verification: 109 tests pass (the existing 103 plus six column-copy
+tests), fmt and clippy `-D warnings` pass. New tests check full mixed-palette
+columns at negative coordinates, cell order, malformed light tails, capacities,
+ABI/null bounds and invalid palettes/trailing bytes. The parent corrected an
+additional overlong local-palette test buffer so its valid prefix is well formed.

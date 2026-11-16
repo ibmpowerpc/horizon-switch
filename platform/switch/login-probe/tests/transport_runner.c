@@ -10,6 +10,13 @@ _Static_assert(sizeof(struct pl_event) == 32, "play event ABI");
 _Static_assert(sizeof(struct wc_state) == 528, "world state ABI");
 _Static_assert(sizeof(struct wc_event) == 72, "world event ABI");
 static struct lj_job job;
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+static uint32_t hash_cells(const uint32_t *cells, uint32_t count) {
+    uint32_t hash = 2166136261u;
+    for (uint32_t i = 0; i < count; ++i) hash = (hash ^ cells[i]) * 16777619u;
+    return hash;
+}
+#endif
 static void *run(void *unused) {
     (void)unused;
     lj_run(&job);
@@ -63,6 +70,13 @@ int main(int argc, char **argv) {
         job.world_sample.state_id, job.world_sample.biome_id,
         dimension ? dimension->min_y : 0, dimension ? dimension->height : 0,
         dimension ? dimension->has_skylight : 0);
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+    printf("COLUMN %d %u %u %u %d %d %d %u %u %u\n", job.column_error,
+        job.column.sections, job.column.blocks_written, job.column.biomes_written,
+        job.column.chunk_x, job.column.chunk_z, job.column.min_y, job.column_sample_match,
+        hash_cells(job.column_blocks, job.column.blocks_written),
+        hash_cells(job.column_biomes, job.column.biomes_written));
+#endif
     for (size_t i = 0; i < sizeof(job.event.uuid); ++i) printf("%02x", job.event.uuid[i]);
     putchar('\n');
     for (size_t i = 0; i < sizeof(job.event.session); ++i) printf("%02x", job.event.session[i]);

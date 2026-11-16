@@ -233,7 +233,7 @@ fn i16_be(reader: &mut Reader<'_>) -> Result<i16, WorldError> {
     Ok(i16::from_be_bytes([bytes[0], bytes[1]]))
 }
 
-fn i32_be(reader: &mut Reader<'_>) -> Result<i32, WorldError> {
+pub(crate) fn i32_be(reader: &mut Reader<'_>) -> Result<i32, WorldError> {
     let bytes = wire(reader.bytes(4))?;
     Ok(i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }
@@ -432,18 +432,45 @@ fn read_heightmap(
     Ok(())
 }
 
-/// Read one paletted container and return its value at `sample_index`, if any.
+/// Where one paletted container's cells belong: the section they describe,
+/// bottom-up, and whether they are block states or biomes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CellTarget {
+    pub section: usize,
+    pub blocks: bool,
+}
+
+/// A destination for the normalized cells of a chunk's containers, in storage
+/// order. A single-value container reports one `uniform` call instead of 4096
+/// or 64 per-cell calls; both shapes describe exactly the same cells.
+pub(crate) trait CellSink {
+    /// Every cell of `target` carries `value`.
+    fn uniform(&mut self, target: CellTarget, value: i32);
+    /// Cell `index` of `target` (YZX block order or YZX 4×4×4 biome order).
+    fn cell(&mut self, target: CellTarget, index: usize, value: i32);
+}
+
+/// A sink that keeps nothing: the validating first pass of a column copy.
+pub(crate) struct IgnoreCells;
+
+impl CellSink for IgnoreCells {
+    fn uniform(&mut self, _target: CellTarget, _value: i32) {}
+    fn cell(&mut self, _target: CellTarget, _index: usize, _value: i32) {}
+}
+
+/// Read one paletted container and report its normalized ids to `sink`.
 ///
 /// The whole storage is checked: every cell's palette index must be in the
 /// local palette, every global block id at most `i32::MAX`, and every biome id
 /// below the retained biome count.
-fn read_container(
+fn read_container<S: CellSink>(
     reader: &mut Reader<'_>,
     blocks: bool,
     biome_count: u32,
     entries: usize,
-    sample_index: Option<usize>,
-) -> Result<Option<i32>, WorldError> {
+    target: CellTarget,
+    sink: &mut S,
+) -> Result<(), WorldError> {
     let wire_bits = wire(reader.u8())?;
     let (has_palette, mut bits) = if blocks {
         match wire_bits {
@@ -495,46 +522,42 @@ fn read_container(
         }
     }
 
-    let mut sampled = None;
     if bits == 0 {
-        if sample_index.is_some() {
-            sampled = Some(palette[0]);
-        }
-    } else {
-        let per = 64 / bits as usize;
-        let mask = (1u64 << bits) - 1;
-        let words = storage_len(bits, entries);
-        for word_index in 0..words {
-            let word = u64_be(reader)?;
-            let base = word_index * per;
-            for cell in 0..per {
-                let index = base + cell;
-                if index >= entries {
-                    break;
+        // The one-value strategy stores no per-cell storage.
+        sink.uniform(target, palette[0]);
+        return Ok(());
+    }
+    let per = 64 / bits as usize;
+    let mask = (1u64 << bits) - 1;
+    let words = storage_len(bits, entries);
+    for word_index in 0..words {
+        let word = u64_be(reader)?;
+        let base = word_index * per;
+        for cell in 0..per {
+            let index = base + cell;
+            if index >= entries {
+                break;
+            }
+            let value = (word >> (cell * bits as usize)) & mask;
+            let resolved = if has_palette {
+                if value as usize >= palette_len {
+                    return Err(WorldError::BadFrame);
                 }
-                let value = (word >> (cell * bits as usize)) & mask;
-                if has_palette {
-                    if value as usize >= palette_len {
-                        return Err(WorldError::BadFrame);
-                    }
-                } else if blocks {
+                palette[value as usize]
+            } else {
+                if blocks {
                     if value > i32::MAX as u64 {
                         return Err(WorldError::BadFrame);
                     }
                 } else if value >= u64::from(biome_count) {
                     return Err(WorldError::BadFrame);
                 }
-                if sample_index == Some(index) {
-                    sampled = Some(if has_palette {
-                        palette[value as usize]
-                    } else {
-                        value as i32
-                    });
-                }
-            }
+                value as i32
+            };
+            sink.cell(target, index, resolved);
         }
     }
-    Ok(sampled)
+    Ok(())
 }
 
 /// A block below the acknowledged pose, when it lies in this chunk column and
@@ -676,15 +699,33 @@ fn read_light(reader: &mut Reader<'_>, sections: usize) -> Result<LightInfo, Wor
     })
 }
 
-/// `LevelChunkWithLight` (play id 46).
-fn decode_chunk(
+/// The structural facts one chunk packet reports to both decoders: the world
+/// event and the column copy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ChunkSummary {
+    pub sections: usize,
+    pub min_y: i32,
+    pub heightmaps: u32,
+    pub block_entities: u32,
+    pub sky_layers: u32,
+    pub block_layers: u32,
+    pub nonempty_blocks: u32,
+    pub fluid_blocks: u32,
+}
+
+/// Decode one chunk packet's payload after its x/z, reporting every normalized
+/// container cell to `sink` in bottom-up section order. The whole payload —
+/// heightmaps, containers, block entities (NBT included) and light — is
+/// validated and must end exactly.
+///
+/// This is the shared body of the world decoder and both column-copy passes, so
+/// a caller that validates twice and writes once sees byte-identical parses.
+pub(crate) fn decode_chunk_cells<S: CellSink>(
     reader: &mut Reader<'_>,
     state: &WcState,
     play: &PlState,
-    decoded: &mut WorldDecoded,
-) -> Result<(), WorldError> {
-    let chunk_x = i32_be(reader)?;
-    let chunk_z = i32_be(reader)?;
+    sink: &mut S,
+) -> Result<ChunkSummary, WorldError> {
     let dimension = selected_dimension(state, play.dimension_type)?;
     if state.biome_count == 0 {
         return Err(WorldError::Unsupported);
@@ -717,11 +758,8 @@ fn decode_chunk(
     // from it and it must end exactly where its own length says.
     let buffer = wire(reader.byte_array())?;
     let mut sections_reader = Reader::new(buffer);
-    let sample = sample_target(play, dimension, chunk_x, chunk_z);
     let mut nonempty_blocks = 0u32;
     let mut fluid_blocks = 0u32;
-    let mut sample_state = None;
-    let mut sample_biome = None;
     for section in 0..sections {
         let non_empty = i16_be(&mut sections_reader)?;
         let fluids = i16_be(&mut sections_reader)?;
@@ -731,30 +769,28 @@ fn decode_chunk(
         nonempty_blocks = nonempty_blocks.saturating_add(u32::from(non_empty as u16));
         fluid_blocks = fluid_blocks.saturating_add(u32::from(fluids as u16));
 
-        let block_sample = sample
-            .filter(|sample| sample.section == section)
-            .map(|sample| sample.block_index);
-        let state_id = read_container(
+        read_container(
             &mut sections_reader,
             true,
             state.biome_count,
             4096,
-            block_sample,
+            CellTarget {
+                section,
+                blocks: true,
+            },
+            sink,
         )?;
-        let biome_sample = sample
-            .filter(|sample| sample.section == section)
-            .map(|sample| sample.biome_index);
-        let biome_id = read_container(
+        read_container(
             &mut sections_reader,
             false,
             state.biome_count,
             64,
-            biome_sample,
+            CellTarget {
+                section,
+                blocks: false,
+            },
+            sink,
         )?;
-        if block_sample.is_some() {
-            sample_state = state_id;
-            sample_biome = biome_id;
-        }
     }
     if sections_reader.remaining() != 0 {
         return Err(WorldError::BadFrame);
@@ -789,18 +825,87 @@ fn decode_chunk(
     if reader.remaining() != 0 {
         return Err(WorldError::BadFrame);
     }
+    Ok(ChunkSummary {
+        sections,
+        min_y: dimension.min_y,
+        heightmaps: heightmaps as u32,
+        block_entities: block_entities as u32,
+        sky_layers: light.sky_layers,
+        block_layers: light.block_layers,
+        nonempty_blocks,
+        fluid_blocks,
+    })
+}
+
+/// The world decoder's cell destination: only the block under the
+/// acknowledged pose is retained.
+struct SampleCells {
+    sample: Option<Sample>,
+    state_id: Option<i32>,
+    biome_id: Option<i32>,
+}
+
+impl CellSink for SampleCells {
+    fn uniform(&mut self, target: CellTarget, value: i32) {
+        if self
+            .sample
+            .is_some_and(|sample| sample.section == target.section)
+        {
+            if target.blocks {
+                self.state_id = Some(value);
+            } else {
+                self.biome_id = Some(value);
+            }
+        }
+    }
+
+    fn cell(&mut self, target: CellTarget, index: usize, value: i32) {
+        let Some(sample) = self
+            .sample
+            .filter(|sample| sample.section == target.section)
+        else {
+            return;
+        };
+        if target.blocks {
+            if sample.block_index == index {
+                self.state_id = Some(value);
+            }
+        } else if sample.biome_index == index {
+            self.biome_id = Some(value);
+        }
+    }
+}
+
+/// `LevelChunkWithLight` (play id 46).
+fn decode_chunk(
+    reader: &mut Reader<'_>,
+    state: &WcState,
+    play: &PlState,
+    decoded: &mut WorldDecoded,
+) -> Result<(), WorldError> {
+    let chunk_x = i32_be(reader)?;
+    let chunk_z = i32_be(reader)?;
+    let dimension = selected_dimension(state, play.dimension_type)?;
+    let sample = sample_target(play, dimension, chunk_x, chunk_z);
+    let mut cells = SampleCells {
+        sample,
+        state_id: None,
+        biome_id: None,
+    };
+    let summary = decode_chunk_cells(reader, state, play, &mut cells)?;
 
     decoded.event.kind = WC_CHUNK;
     decoded.event.chunk_x = chunk_x;
     decoded.event.chunk_z = chunk_z;
-    decoded.event.sections = sections as u32;
-    decoded.event.heightmaps = heightmaps as u32;
-    decoded.event.block_entities = block_entities as u32;
-    decoded.event.sky_layers = light.sky_layers;
-    decoded.event.block_layers = light.block_layers;
-    decoded.event.nonempty_blocks = nonempty_blocks;
-    decoded.event.fluid_blocks = fluid_blocks;
-    if let (Some(sample), Some(state_id), Some(biome_id)) = (sample, sample_state, sample_biome) {
+    decoded.event.sections = summary.sections as u32;
+    decoded.event.heightmaps = summary.heightmaps;
+    decoded.event.block_entities = summary.block_entities;
+    decoded.event.sky_layers = summary.sky_layers;
+    decoded.event.block_layers = summary.block_layers;
+    decoded.event.nonempty_blocks = summary.nonempty_blocks;
+    decoded.event.fluid_blocks = summary.fluid_blocks;
+    if let (Some(sample), Some(state_id), Some(biome_id)) = (sample, cells.state_id, cells.biome_id)
+    {
         decoded.event.sample_valid = 1;
         decoded.event.sample_x = sample.x;
         decoded.event.sample_y = sample.y;

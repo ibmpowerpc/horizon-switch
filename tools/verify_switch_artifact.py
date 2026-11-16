@@ -43,6 +43,8 @@ def verify(nro_path, elf_path, title, version):
             "<II4QII2Q", elf, shoff + i * shsize)
         if not flags & 2:  # Only runtime sections, not debug relocations.
             continue
+        if kind == 8:  # SHT_NOBITS (BSS) occupies memory, not bytes in the ELF.
+            continue
         data = elf[offset:offset + size]
         assert len(data) == size, "truncated section"
         if kind == 4:  # SHT_RELA

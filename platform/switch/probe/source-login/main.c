@@ -12,7 +12,9 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
-#if defined(CRAFTRUSTNX_WORLD_DATA)
+#if defined(CRAFTRUSTNX_COLUMN_SNAPSHOT)
+static const char *LABEL_TITLE = "CraftRustNX: Column Snapshot Probe";
+#elif defined(CRAFTRUSTNX_WORLD_DATA)
 static const char *LABEL_TITLE = "CraftRustNX: Structured World Data Probe";
 #elif defined(CRAFTRUSTNX_PLAY_SESSION)
 static const char *LABEL_TITLE = "CraftRustNX: Play Session Probe";
@@ -75,6 +77,10 @@ static const char *LABEL_NOT_READY = "No terrain validated; PlayerLoaded was not
 #endif
 
 #ifdef CRAFTRUSTNX_WORLD_DATA
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+static const char *LABEL_COLUMN = "Snapshot: %" PRIu32 " sections | blocks: %" PRIu32 " | biomes: %" PRIu32 " | status: %" PRId32 "\n";
+static const char *LABEL_COLUMN_MATCH = "Snapshot sample agrees: %s. No live updates or terrain renderer.";
+#endif
 static const char *LABEL_WORLD_ERROR = " (world codec: %" PRId32 ")";
 static const char *LABEL_WORLD_REGISTRIES = "Dimension entries: %" PRIu32 " | biome entries: %" PRIu32 "\n";
 static const char *LABEL_WORLD_SHAPE = "World min Y: %" PRId32 " | height: %" PRId32 " | skylight: %s\n";
@@ -82,7 +88,9 @@ static const char *LABEL_WORLD_CHUNKS = "Checked chunks: %" PRIu32 " | sections:
 static const char *LABEL_WORLD_LIGHT = "Light updates: %" PRIu32 " | sky layers: %" PRIu32 " | block layers: %" PRIu32 "\n";
 static const char *LABEL_WORLD_SAMPLE = "Block below pose (%" PRId32 ",%" PRId32 ",%" PRId32 "): state ID %" PRId32 " | biome ID %" PRId32 "\n";
 static const char *LABEL_WORLD_NO_SAMPLE = "Matching chunk sample not received.";
+#ifndef CRAFTRUSTNX_COLUMN_SNAPSHOT
 static const char *LABEL_WORLD_LIMIT = "Raw IDs only; no block names, terrain cache or renderer.";
+#endif
 #endif
 
 static const char *stage_name(enum lj_stage stage) {
@@ -97,6 +105,7 @@ static const char *stage_name(enum lj_stage stage) {
     case LJ_PLAY_WAIT: return "WAITING_FOR_PLAY_PACKET";
     case LJ_PLAY_RECEIVING: return "OBSERVING_PLAY_SESSION";
     case LJ_PLAY_SESSION_OBSERVED: return "PLAY_SESSION_OBSERVED";
+    case LJ_COLUMN_SNAPSHOT: return "COLUMN_SNAPSHOT_OBSERVED";
     case LJ_WORLD_DATA_OBSERVED: return "WORLD_DATA_OBSERVED";
     case LJ_PLAY_PACKET_SEEN: return "PLAY_PACKET_SEEN";
     case LJ_ACTION_REQUIRED: return "USER_ACTION_REQUIRED";
@@ -115,7 +124,7 @@ static bool terminal_stage(int stage) {
         stage == LJ_AUTH_REQUIRED || stage == LJ_UNSUPPORTED ||
         stage == LJ_ERROR || stage == LJ_CANCELLED ||
         stage == LJ_PLAY_PACKET_SEEN || stage == LJ_ACTION_REQUIRED ||
-        stage == LJ_PLAY_SESSION_OBSERVED || stage == LJ_WORLD_DATA_OBSERVED;
+        stage == LJ_PLAY_SESSION_OBSERVED || stage == LJ_WORLD_DATA_OBSERVED || stage == LJ_COLUMN_SNAPSHOT;
 }
 
 static const char *error_name(enum lj_error error) {
@@ -180,20 +189,14 @@ int main(void) {
     const bool sockets_ok = R_SUCCEEDED(sock_init);
 
     // Static job: host uses the shared editable default, port 25565, name CraftRustNX.
-    static struct lj_job job = {
-        .host = CRAFTRUSTNX_DEFAULT_HOST,
-        .name = "CraftRustNX",
-        .port = 25565,
-        .cancel = false,
-        .stage = LJ_IDLE,
-        .error = LJ_ERR_NONE,
-        .system_error = 0,
-        .resolver_error = 0,
-        .codec_error = 0,
-        .compression = -1,
-        .received_bytes = 0,
-        .frame_count = 0,
-    };
+    /* Keep the large snapshot arrays in BSS, not zero-filled NRO data. */
+    static struct lj_job job;
+    strcpy(job.host, CRAFTRUSTNX_DEFAULT_HOST);
+    strcpy(job.name, "CraftRustNX");
+    job.port = 25565;
+    job.compression = -1;
+    atomic_init(&job.cancel, false);
+    atomic_init(&job.stage, LJ_IDLE);
 
     Thread thread;
     bool thread_active = false;
@@ -420,7 +423,14 @@ int main(void) {
                 printf(LABEL_WORLD_SAMPLE, sample->sample_x, sample->sample_y, sample->sample_z,
                     sample->state_id, sample->biome_id);
             } else puts(LABEL_WORLD_NO_SAMPLE);
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+            printf(LABEL_COLUMN, job.column.sections, job.column.blocks_written,
+                job.column.biomes_written, job.column_error);
+            printf(LABEL_COLUMN_MATCH, job.column_sample_match ? "yes" : "no");
+            putchar('\n');
+#else
             puts(LABEL_WORLD_LIMIT);
+#endif
 #endif
 
             if (job.login_accepted) {

@@ -84,6 +84,7 @@ def chunk(height=128, mode="single", fault=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__); parser.add_argument("runner", type=Path)
+    parser.add_argument("--snapshot", action="store_true")
     args = parser.parse_args(); runner = str(args.runner.resolve())
     build = Path(__file__).resolve().parents[1] / "platform/switch/login-probe/tests/build"
     with tempfile.TemporaryDirectory(prefix="world-keys-", dir=build) as directory:
@@ -151,17 +152,33 @@ def main():
                     try: server.result(timeout=5)
                     except Exception as error: raise AssertionError((label, result.stdout, result.stderr)) from error
             lines = result.stdout.splitlines(); v = list(map(int, lines[0].split()))
-            expected = (8, 0, -5) if fault == "missing-biomes" else (9, 7, 0) if fault in ("no-sample", "pose-stale") else (9, 8, -3) if fault in ("dimension", "heightmap", "palette", "light") else (18, 0, 0)
+            expected = (8, 0, -5) if fault == "missing-biomes" else (9, 7, 0) if fault in ("no-sample", "pose-stale") else (9, 8, -3) if fault in ("dimension", "heightmap", "palette", "light") else (19 if args.snapshot else 18, 0, 0)
             assert (v[0], v[1], v[37]) == expected, (label, v)
+            column = None
+            if args.snapshot:
+                assert lines[1].startswith("COLUMN ")
+                column = list(map(int, lines.pop(1).split()[1:]))
             assert lines[1:4] == [PLAYER_UUID.hex(), SESSION.hex(), NAME.decode()]
             assert v[38] == (0 if fault == "dimension" else 1)
-            if expected[0] == 18:
+            if expected[0] in (18, 19):
                 assert v[39] == 3 and v[40] == 1 and v[42:45] == [height // 16, 1, 1], (label, v)
                 assert v[45] == (height // 16 + 2) * (2 if fault == "light-update" else 1), (label, v)
                 assert v[41] == (1 if fault == "light-update" else 0)
                 assert v[47:51] == [1, 12, 63, -9]
                 assert v[51:56] == [257 if mode == "global" else 7, 2, 0, height, 1], (label, v)
-            if fault in ("no-sample", "pose-stale"): assert v[47] == 0
+            if column is not None and expected[0] == 19:
+                sections = height // 16
+                def digest(values):
+                    h = 2166136261
+                    for value in values: h = ((h ^ value) * 16777619) & 0xffffffff
+                    return h
+                states = (257 if mode == "global" else (7 if mode == "single" or (i >> 4) & 1 else 0)
+                          for _ in range(sections) for i in range(4096))
+                assert column == [0, sections, sections * 4096, sections * 64, 0, -1, 0, 1,
+                                  digest(states), digest([2] * (sections * 64))], (label, column)
+            if fault in ("no-sample", "pose-stale"):
+                assert v[47] == 0
+                if column is not None: assert column[1:4] == [0, 0, 0]
             print(f"PASS {label} ({time.monotonic()-started:.2f}s)", flush=True)
 
         fixture("single palettes and sample")

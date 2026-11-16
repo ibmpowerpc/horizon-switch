@@ -37,7 +37,7 @@ case "$variant" in
     native_args=("NET_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("NET_ARCHIVE=/workspace/$archive_rel")
     ;;
-  login|encrypted-login|configuration|play-session|world-data)
+  login|encrypted-login|configuration|play-session|world-data|column-snapshot)
     bash "$project_dir/platform/switch/login-probe/build.sh"
     target=craftrustnx-login-probe
     archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_login_codec.a
@@ -47,24 +47,29 @@ case "$variant" in
       target=craftrustnx-encrypted-login-probe
       native_args+=(ENCRYPTED_LOGIN=1)
       docker_args+=(ENCRYPTED_LOGIN=1)
-      if [[ "$variant" == configuration || "$variant" == play-session || "$variant" == world-data ]]; then
+      if [[ "$variant" == configuration || "$variant" == play-session || "$variant" == world-data || "$variant" == column-snapshot ]]; then
         target=craftrustnx-configuration-probe
         native_args+=(CONFIGURATION_PROBE=1)
         docker_args+=(CONFIGURATION_PROBE=1)
-        if [[ "$variant" == play-session || "$variant" == world-data ]]; then
+        if [[ "$variant" == play-session || "$variant" == world-data || "$variant" == column-snapshot ]]; then
           target=craftrustnx-play-session-probe
           native_args+=(PLAY_SESSION=1)
           docker_args+=(PLAY_SESSION=1)
-          if [[ "$variant" == world-data ]]; then
+          if [[ "$variant" == world-data || "$variant" == column-snapshot ]]; then
             target=craftrustnx-world-data-probe
             native_args+=(WORLD_DATA=1)
             docker_args+=(WORLD_DATA=1)
+            if [[ "$variant" == column-snapshot ]]; then
+              target=craftrustnx-column-snapshot-probe
+              native_args+=(COLUMN_SNAPSHOT=1)
+              docker_args+=(COLUMN_SNAPSHOT=1)
+            fi
           fi
         fi
       fi
     fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data or gpu.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot or gpu.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -82,7 +87,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|gpu]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|gpu]' >&2
     exit 2
     ;;
 esac

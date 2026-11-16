@@ -16,6 +16,8 @@
 //!   structurally complete event.
 //! - [`decode_play_body`] parses one complete, already-unframed play body and
 //!   answers the small client controls; it never simulates a world.
+//! - [`decode_column_body`] validates one complete `LevelChunkWithLight` body
+//!   and copies its normalized block-state and biome ids into caller buffers.
 //!
 //! `no_std`, no allocation: the only dependency is `miniz_oxide` (no-alloc
 //! `inflate::core`) for the zlib body of the compression envelope.
@@ -35,10 +37,17 @@ pub mod play;
 pub mod wire;
 pub mod world;
 
+pub mod column;
+pub mod column_ffi;
 pub mod ffi;
 pub mod play_ffi;
 pub mod world_ffi;
 
+pub use column::{
+    decode_column_body, ColInfo, ColumnError, COL_BAD_ARGUMENT, COL_BAD_FRAME, COL_LIMIT,
+    COL_MAX_BIOMES, COL_MAX_BLOCKS, COL_OK, COL_OUTPUT_SMALL, COL_UNSUPPORTED,
+};
+pub use column_ffi::craftrustnx_column_copy;
 pub use configuration::{
     decode_configuration_frame, encode_client_frame, CfEvent, CF_BAD_ARGUMENT, CF_BAD_FRAME,
     CF_COOKIE_REQUEST, CF_DISCONNECT, CF_FINISH, CF_KEEP_ALIVE, CF_KNOWN_PACKS, CF_METADATA,

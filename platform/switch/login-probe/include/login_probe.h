@@ -3,6 +3,7 @@
 #include "login_codec.h"
 #include "play_codec.h"
 #include "world_codec.h"
+#include "column_codec.h"
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -10,7 +11,7 @@
 enum lj_stage { LJ_IDLE, LJ_RESOLVING, LJ_CONNECTING, LJ_SENDING, LJ_RECEIVING,
     LJ_ACCEPTED, LJ_DISCONNECTED, LJ_AUTH_REQUIRED, LJ_UNSUPPORTED,
     LJ_ERROR, LJ_CANCELLED, LJ_KEY_EXCHANGE, LJ_CONFIGURING, LJ_PLAY_WAIT,
-    LJ_PLAY_PACKET_SEEN, LJ_ACTION_REQUIRED, LJ_PLAY_RECEIVING, LJ_PLAY_SESSION_OBSERVED, LJ_WORLD_DATA_OBSERVED };
+    LJ_PLAY_PACKET_SEEN, LJ_ACTION_REQUIRED, LJ_PLAY_RECEIVING, LJ_PLAY_SESSION_OBSERVED, LJ_WORLD_DATA_OBSERVED, LJ_COLUMN_SNAPSHOT };
 enum lj_error { LJ_ERR_NONE, LJ_ERR_ARGUMENT, LJ_ERR_DNS, LJ_ERR_CONNECT,
     LJ_ERR_TIMEOUT, LJ_ERR_SEND, LJ_ERR_RECV, LJ_ERR_EOF, LJ_ERR_PROTOCOL,
     LJ_ERR_CLOCK, LJ_ERR_CRYPTO, LJ_ERR_MEMORY, LJ_ERR_LIMIT };
@@ -61,6 +62,15 @@ struct lj_job {
     uint32_t validated_block_entities;
     uint32_t validated_sky_layers;
     uint32_t validated_block_layers;
+    struct col_info column;
+    int32_t column_error;
+    uint32_t column_sample_match;
+#ifdef CRAFTRUSTNX_COLUMN_SNAPSHOT
+    /* Caller-owned static storage, retained after worker completion. Snapshot
+     * only: block updates/light are not applied and no live world is installed. */
+    uint32_t column_blocks[COL_MAX_BLOCKS];
+    uint32_t column_biomes[COL_MAX_BIOMES];
+#endif
     int32_t compression;
     uint32_t received_bytes;
     uint32_t frame_count;

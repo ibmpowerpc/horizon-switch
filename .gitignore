@@ -56,3 +56,5 @@
 
 /platform/switch/probe/build-gpu/
 /platform/switch/probe/build-gpu-romfs/
+
+/platform/switch/probe/build-column-snapshot/

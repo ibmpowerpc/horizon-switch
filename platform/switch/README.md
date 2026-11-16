@@ -179,3 +179,14 @@ A — пауза, B — палитра, X — сброс, Plus — резуль�
 Пользователь подтвердил на Switch Lite видимую анимацию, работу A/B/X и выхода
 через Plus. Измерений FPS/памяти пока нет.
 См. [gpu-probe](gpu-probe/README.md).
+
+## Снимок полной колонки
+
+`bash scripts/build-switch.sh docker column-snapshot` собирает отдельный
+**CraftRustNX Column Snapshot Probe 0.7.0**. Он сохраняет полную колонку raw
+block/biome ID через Rust в статических буферах и сверяет образец под игроком.
+Ожидается `COLUMN_SNAPSHOT_OBSERVED`, `Error: NONE`, snapshot status0 и
+`Snapshot sample agrees: yes`. Это снимок принятого пакета, без применения
+последующих block/light updates, рендера мира или PlayerLoaded. Host fixtures
+проходят; новый live-server/hardware результат пока ожидается. Подробности —
+[COLUMN-SNAPSHOT.md](login-probe/COLUMN-SNAPSHOT.md).

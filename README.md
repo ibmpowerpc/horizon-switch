@@ -37,6 +37,10 @@ A separate [Rust GPU probe](platform/switch/gpu-probe/README.md) now builds a
 Rust-controlled triangle through a deko3d SDK bridge. The user confirmed visible
 animation, A/B/X controls and Plus exit on Switch Lite. This does not yet
 integrate Horizon's renderer or establish performance.
+The [column-snapshot probe](platform/switch/login-probe/COLUMN-SNAPSHOT.md)
+now normalizes and retains one received column in caller-owned buffers through
+Rust, with independent whole-array host checks. Its live-server and Switch
+validation remain pending; this is not yet a live terrain cache.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

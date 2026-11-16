@@ -97,6 +97,13 @@ BUILD := build-world-data
 APP_TITLE := CraftRustNX World Data Probe
 APP_VERSION := 0.5.0
 DEFINES += -DCRAFTRUSTNX_WORLD_DATA
+ifneq ($(strip $(COLUMN_SNAPSHOT)),)
+TARGET := craftrustnx-column-snapshot-probe
+BUILD := build-column-snapshot
+APP_TITLE := CraftRustNX Column Snapshot Probe
+APP_VERSION := 0.7.0
+DEFINES += -DCRAFTRUSTNX_COLUMN_SNAPSHOT
+endif
 endif
 endif
 endif
