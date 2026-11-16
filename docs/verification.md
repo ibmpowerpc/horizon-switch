@@ -410,3 +410,13 @@ NACP: CraftRustNX Configuration Probe / 0.3.0. Проверка
 
 Передача нового NRO через MTP ещё не выполнена. Артефакты около 475 МиБ,
 свободно 15.8 GiB; дополнительных загрузок нет.
+
+## Передача Configuration Probe 0.3.0 через MTP
+
+2026-11-16 `craftrustnx-configuration-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777268.
+Обратное чтение подтвердило побайтовое совпадение: 571589 байт, SHA256
+`04ee8e34468617a504e2da4b84ebce31ba86e8bc2764e93335eef50a57fe94f5`.
+Старые NRO не заменялись. Временный helper и readback удалены после проверки.
+Аппаратный запуск configuration ещё ожидается: успешная передача не означает
+прохождения этого этапа на Switch.
