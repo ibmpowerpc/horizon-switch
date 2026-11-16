@@ -604,3 +604,13 @@ GPU: offline audit подтверждает installed SDK и работу UAM (5
 отчёт сохранён в ignored `tests/build/mtp-world-data.json`.
 Ожидается аппаратный результат `WORLD_DATA_OBSERVED` / Error NONE; передача
 сама по себе не подтверждает запуск нового декодера на Switch.
+
+## Аппаратный результат World Data Probe 0.5.0
+
+2026-11-16 пользователь подтвердил `WORLD_DATA_OBSERVED` на Switch Lite.
+Это конечный успешный этап 0.5.0: получены selected registries, структурно
+проверен хотя бы один chunk, получен sample под подтверждённой позицией,
+отправлены pose/batch ACK и keepalive reply. Фотография и точные аппаратные
+счётчики этого запуска не предоставлены; host-значения не выдаются за них.
+Проверка не включает terrain cache, light propagation, mesh или renderer;
+PlayerLoaded не отправлялся. Следующий отдельный этап — GPU smoke test.

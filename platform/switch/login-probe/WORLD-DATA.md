@@ -43,6 +43,6 @@ reconfiguration retain the previous diagnostic's unsupported/declined behavior.
 Host verification includes 103 Rust tests, 14 independent world-data TCP
 scenarios and a successful connection to the user's real Java 26.3 LAN world:
 49 chunks / 1176 sections checked, a valid sample and one keepalive response.
-This uses OpenSSL on the host; execution of 0.5.0 on Switch still needs a separate
-hardware result. See [verification](../../../docs/verification.md) and
+The host run uses OpenSSL. The user subsequently confirmed
+WORLD_DATA_OBSERVED on Switch Lite; exact device counters were not supplied. See [verification](../../../docs/verification.md) and
 [reproducible host checks](tests/WORLD-DATA-TESTS.md).

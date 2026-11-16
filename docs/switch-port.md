@@ -132,7 +132,8 @@ The separate 0.5.0 diagnostic adds no_std Rust NBT scanning and structural
 registry/chunk/light decoding, keeping the existing C SDK bridge. Its host
 connection to the user's Java 26.3 world checked 49 columns and 1176 sections
 and resolved a raw block-state/biome sample below the acknowledged pose.
-The Switch run is pending; this does not install terrain or justify PlayerLoaded.
+The user also confirmed WORLD_DATA_OBSERVED on Switch Lite. This does not
+install terrain or justify PlayerLoaded.
 Next work needs a retained world representation and a measured GPU path.
 The [offline GPU inventory](switch-gpu-path-audit.md) confirms installed deko3d,
 UAM and EGL/GLES libraries, but no native GPU rendering or acceleration is proven.
