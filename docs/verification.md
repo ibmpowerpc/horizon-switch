@@ -510,3 +510,13 @@ Error 0, codec 0, compression 256, encryption true, configuration ACK true.
 schema. Адрес/порт и session UUID в этот результат не включены. Локальный JSON
 отчёт сохранён в ignored `tests/build/live-play-session.json`.
 Аппаратная Play Session Probe 0.4.0 всё ещё ожидается.
+
+## Передача Play Session Probe 0.4.0 через MTP
+
+2026-11-16 `craftrustnx-play-session-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777269.
+Обратное чтение подтвердило побайтовое совпадение: 575685 байт, SHA256
+`c429b553268dff4395d76e1812b23ab57be6f6ff85021c6ae9e3e8428dd80dc4`.
+Прежние NRO не заменялись; временные helper/readback удалены после проверки.
+Host-проверка настоящего Java-сервера успешна, аппаратный запуск `.nro` на Switch
+всё ещё ожидается.
