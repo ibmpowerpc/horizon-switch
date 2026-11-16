@@ -9,6 +9,13 @@ native_args=(all)
 docker_args=(all)
 case "$variant" in
   hardware) ;;
+  gpu)
+    bash "$project_dir/platform/switch/gpu-probe/build.sh"
+    target=craftrustnx-gpu-probe
+    archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_gpu_probe.a
+    native_args=("GPU_ARCHIVE=$project_dir/$archive_rel")
+    docker_args=("GPU_ARCHIVE=/workspace/$archive_rel")
+    ;;
   rust)
     bash "$project_dir/platform/switch/rust-probe/build.sh"
     target=craftrustnx-rust-probe
@@ -57,7 +64,7 @@ case "$variant" in
       fi
     fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session or world-data.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data or gpu.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -75,12 +82,16 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|gpu]' >&2
     exit 2
     ;;
 esac
 
 mkdir -p "$project_dir/dist/switch/craftrustnx"
 cp "$probe_dir/$target.nro" "$project_dir/dist/switch/craftrustnx/"
+if [[ "$variant" == gpu ]]; then
+  cp "$project_dir/platform/switch/gpu-probe/SDK-NOTICES.txt" \
+    "$project_dir/dist/switch/craftrustnx/craftrustnx-gpu-notices.txt"
+fi
 echo "NRO: $project_dir/dist/switch/craftrustnx/$target.nro"
 python3 "$project_dir/platform/switch/check-budget.py"

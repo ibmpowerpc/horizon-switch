@@ -614,3 +614,44 @@ GPU: offline audit подтверждает installed SDK и работу UAM (5
 счётчики этого запуска не предоставлены; host-значения не выдаются за них.
 Проверка не включает terrain cache, light propagation, mesh или renderer;
 PlayerLoaded не отправлялся. Следующий отдельный этап — GPU smoke test.
+
+## Rust GPU Probe 0.6.0: подготовка и сборка
+
+2026-11-16 добавлен отдельный GPU smoke test. Rust no_std staticlib задаёт
+clear/geometry/color/animation и pause/palette/reset/exit. Libnx обвязка читает
+кнопки и время, а C/deko3d мост создаёт double-buffered 1280×720 RGBA8 target,
+копирует 96-byte std140 uniforms и отправляет draw. Оригинальные vertex/fragment
+GLSL скомпилированы UAM и включены в RomFS; game assets не используются.
+
+11 Rust-тестов, fmt и clippy `-D warnings` прошли при проверке родителем.
+Проверены ABI 32-byte state / 128-byte frame, independent geometry/time vectors,
+контроли, nonmonotonic/large timestamps, bounds/finite output и null arguments.
+Rust cross-build повторно использовал существующий core cache, Cortex-A57/PIC.
+C main прошёл SDK syntax check, production main/native objects собраны с
+`-fPIE -Wall -Wextra -Werror -Wframe-larger-than=32768`; compile-only SDK check
+тоже повторён после интеграционных исправлений (72 KiB artifacts).
+
+Parent review исправил три ошибки в исходном мосте: cleanup после partial init,
+shared uniform overwrite до завершения GPU и неограниченное накопление команд.
+Сейчас каждый кадр ждёт queue idle перед overwrite, очищает command arena,
+заново записывает framebuffer binding/draw и инвалидирует shader/L2 caches.
+256-byte uniform range содержит 96-byte Rust payload. Shutdown проверяет каждый
+созданный handle независимо от флага полного init. Это осознанная сериализация
+smoke test, не доказательство эффективности окончательного renderer.
+
+`bash scripts/build-switch.sh docker gpu` успешно создал
+`dist/switch/craftrustnx/craftrustnx-gpu-probe.nro`: 270453 bytes, SHA256
+`b72a999422e01e0b77c3d1d12bfd831e82a450097de88bcc43f629027598b4f5`.
+NRO0 / ASET / NACP title `CraftRustNX Rust GPU Probe`, version `0.6.0`;
+ELF64 LE AArch64 DYN, без DT_TEXTREL, все 404 dynamic relocations в writable
+segments. Независимый обход встроенного RomFS подтвердил точное содержимое
+`/shaders/probe_vsh.dksh` (768 bytes, DKSH) и `probe_fsh.dksh` (512 bytes, DKSH)
+сравнением с выходами UAM. SDK notices приложены отдельным текстовым файлом.
+
+После scoped host-тестов удалён только их регенерируемый debug target;
+перед сборкой удалены object-файлы World Data Probe, его NRO/ELF сохранены.
+Итоговый experiment budget около 478.5 MiB / 512, свободно около 15.3 GiB.
+Никаких toolchain/dependencies/images не загружалось. Неоконченные agent reports
+с ошибочными license/synchronization/performance claims исключены из публичных
+документов и сохранены только в ignored build/unreviewed-agent-notes.
+Аппаратная проверка GPU и передача новой пробы на SD ещё ожидаются.

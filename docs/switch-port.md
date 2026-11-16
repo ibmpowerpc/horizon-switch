@@ -137,3 +137,13 @@ install terrain or justify PlayerLoaded.
 Next work needs a retained world representation and a measured GPU path.
 The [offline GPU inventory](switch-gpu-path-audit.md) confirms installed deko3d,
 UAM and EGL/GLES libraries, but no native GPU rendering or acceleration is proven.
+
+## GPU bring-up 0.6.0
+
+The separate Rust GPU Probe builds and packages a Rust-generated animated triangle
+through a deko3d 0.5.0 C SDK bridge, with original UAM shaders embedded in RomFS.
+Rust owns geometry, time, palette and button behavior; C owns libnx/deko3d calls.
+The bridge waits for queue idle before recycling shared command/uniform memory.
+This serialized diagnostic does not measure renderer performance or select the
+final backend. Native display, input response and teardown still need a device
+result. World caching, meshing, assets and Horizon/wgpu integration remain open.

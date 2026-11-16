@@ -166,3 +166,15 @@ Pose ACK, keepalive, opaque chunk и batch ACK. Возможна пауза ок
 Проверка с настоящим Java 26.3 сервером с компьютера прошла; пользователь также
 подтвердил `WORLD_DATA_OBSERVED` на Switch Lite. Это ещё не загрузка мира или рендер; PlayerLoaded не отправляется.
 Подробности — [WORLD-DATA.md](login-probe/WORLD-DATA.md).
+
+## Первый GPU-тест
+
+`bash scripts/build-switch.sh docker gpu` создаёт отдельный
+`craftrustnx-gpu-probe.nro` и `craftrustnx-gpu-notices.txt`. В hbmenu выбери
+**CraftRustNX Rust GPU Probe 0.6.0**, затем нажми A на экране инструкций.
+Ожидается движущийся цветной треугольник на тёмном фоне. В графическом режиме:
+A — пауза, B — палитра, X — сброс, Plus — результаты; ещё раз Plus — hbmenu.
+Геометрию и управление задаёт Rust, GPU вызывается через небольшой SDK-мост.
+Это отдельный smoke test с ожиданием GPU перед перезаписью буферов, не FPS benchmark.
+Сборка и упаковка проверены; аппаратный GPU-результат пока ожидается.
+См. [gpu-probe](gpu-probe/README.md).

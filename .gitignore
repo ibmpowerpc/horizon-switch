@@ -53,3 +53,6 @@
 /platform/switch/probe/*.map
 /dist/
 /upstream/
+
+/platform/switch/probe/build-gpu/
+/platform/switch/probe/build-gpu-romfs/

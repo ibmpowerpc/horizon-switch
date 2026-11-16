@@ -1,0 +1,9 @@
+# Host verification builds live in build/host-target.
+/build/
+/target/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
