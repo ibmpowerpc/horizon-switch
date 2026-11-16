@@ -593,3 +593,14 @@ GPU: offline audit подтверждает installed SDK и работу UAM (5
 оригинального vertex shader). Выполнения GPU-кода на Switch, EGL acceleration
 или производительности это не подтверждает. Неоконченные материалы неудавшихся
 агентов изолированы в ignored tests/build и не включены в публичный аудит.
+
+## Передача World Data Probe 0.5.0 через MTP
+
+2026-11-16 новый `craftrustnx-world-data-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777270. Обратное чтение
+подтвердило побайтовое совпадение: 587973 bytes, SHA256
+`50f22eb400791946cbd22f637efe6e223d113254a41cc319525f7e02563ab9c5`.
+Прежние файлы не заменялись. Временный helper и readback удалены после проверки;
+отчёт сохранён в ignored `tests/build/mtp-world-data.json`.
+Ожидается аппаратный результат `WORLD_DATA_OBSERVED` / Error NONE; передача
+сама по себе не подтверждает запуск нового декодера на Switch.
