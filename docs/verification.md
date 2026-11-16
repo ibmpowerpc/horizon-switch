@@ -655,3 +655,16 @@ segments. Независимый обход встроенного RomFS под�
 с ошибочными license/synchronization/performance claims исключены из публичных
 документов и сохранены только в ignored build/unreviewed-agent-notes.
 Аппаратная проверка GPU и передача новой пробы на SD ещё ожидаются.
+
+## Передача Rust GPU Probe 0.6.0 через MTP
+
+2026-11-16 через DBI/MTP в `1: SD Card` → `switch/craftrustnx/` переданы:
+`craftrustnx-gpu-probe.nro` (object 16777271, 270453 bytes, SHA256
+`b72a999422e01e0b77c3d1d12bfd831e82a450097de88bcc43f629027598b4f5`)
+и `craftrustnx-gpu-notices.txt` (object 16777272, 2181 bytes, SHA256
+`adee1f5a3fab938a8184f356a77a04ccd3818587b6708902b9dc4aa23dd12ec6`).
+Обратное чтение обоих файлов подтвердило побайтовое совпадение. Старые NRO
+не заменялись; временный transfer helper/readback удалены. Отчёт сохранён
+в ignored `gpu-probe/build/mtp-transfer.json`.
+Аппаратный результат GPU пока ожидается: видимая анимация, pause/palette/reset,
+выход к summary и возврат в hbmenu проверяются пользователем отдельно от передачи.
