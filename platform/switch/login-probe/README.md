@@ -4,8 +4,9 @@ This standalone probe targets protocol 777. It sends a login handshake and
 LoginStart with an offline UUID, then stops after validating LoginFinished.
 It sends no LoginAcknowledged and does not enter configuration or play.
 
-Build/link, 34 Rust tests and 19 host TCP fixtures pass. Hardware login success
-is not yet verified. The separate status probe has Switch Lite hardware evidence.
+Build/link, 34 Rust tests and 19 host TCP fixtures pass. The separate encrypted
+variant has Switch Lite hardware confirmation through login acceptance; the
+info-only variant still stops at EncryptionRequest.
 
 The separate [encrypted variant](ENCRYPTED.md) implements RSA/AES transport
 negotiation without a session-service join and observes the server's decision.

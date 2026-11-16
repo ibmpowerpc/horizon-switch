@@ -33,8 +33,8 @@ static const char *LABEL_ERROR = "Error:";
 static const char *LABEL_COMPRESSION = "Compression:";
 static const char *LABEL_FRAMES = "Frames:";
 static const char *LABEL_RECEIVED = "Received:";
-static const char *LABEL_SERVER_NAME = "Server name:";
-static const char *LABEL_SERVER_UUID = "Server UUID:";
+static const char *LABEL_PROFILE_NAME = "Accepted player:";
+static const char *LABEL_PROFILE_UUID = "Player UUID:";
 static const char *LABEL_SESSION_UUID = "Session UUID:";
 static const char *LABEL_EVENT_DATA = "Event data (sanitized):";
 static const char *LABEL_NO_DATA = "(no event data)";
@@ -320,11 +320,11 @@ int main(void) {
 
             if (current_stage == LJ_ACCEPTED) {
                 char uuid_str[37];
-                printf("\n%s ", LABEL_SERVER_NAME);
+                printf("\n%s ", LABEL_PROFILE_NAME);
                 sanitize_display((const uint8_t *)job.event.name, (uint32_t)strlen(job.event.name), 16);
                 printf("\x1b[K\n");
                 format_uuid(job.event.uuid, uuid_str, sizeof(uuid_str));
-                printf("%s %s\x1b[K\n", LABEL_SERVER_UUID, uuid_str);
+                printf("%s %s\x1b[K\n", LABEL_PROFILE_UUID, uuid_str);
                 format_uuid(job.event.session, uuid_str, sizeof(uuid_str));
                 printf("%s %s\x1b[K\n", LABEL_SESSION_UUID, uuid_str);
             }

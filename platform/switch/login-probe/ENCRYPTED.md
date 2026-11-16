@@ -17,8 +17,13 @@ accept offline TLauncher profiles despite setting that flag to true.
 `LOGIN_ACCEPTED` means a structurally validated LoginFinished was received; the
 probe closes before configuration/play and sends no LoginAcknowledged.
 `DISCONNECTED` shows sanitized server text. `ERROR` includes network, codec or
-crypto codes. `KEY_EXCHANGE` is intermediate, not success. Hardware encryption
-and login acceptance are **not yet verified**.
+crypto codes. `KEY_EXCHANGE` is intermediate, not success. On 2026-11-16 the user
+confirmed `LOGIN_ACCEPTED`, encryption active, no error, and threshold 256 on
+Switch Lite against the Java 26.3 LAN world.
+
+The accepted name/UUID are the **player profile returned by the server**, not the
+server's name/identity. The 0.2.0 screen mislabeled them `Server name/UUID`;
+source labels are corrected to `Accepted player` / `Player UUID` for the next build.
 
 ## Bounds and SDK
 

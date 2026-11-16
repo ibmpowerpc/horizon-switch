@@ -15,10 +15,9 @@ on Switch remain to be implemented and tested.
 The isolated Java server status probe passed its host TCP fixtures, and the user
 confirmed `DONE` with a recognizable server response on Switch Lite. Login and
 gameplay remain unimplemented in the probe.
-An offline login diagnostic for Java 26.3 also builds and passes host fixtures;
-its login acceptance on Switch is not yet verified.
-An encrypted offline-profile probe adds RSA/AES-CFB8 negotiation and passes host
-fixtures; its SDK cryptography and login acceptance still need a hardware test.
+The user also confirmed encrypted offline login acceptance on Switch Lite against
+a Java 26.3 LAN world: RSA/AES-CFB8, `LOGIN_ACCEPTED`, encryption active and no error.
+The diagnostic stops before configuration/play; no game world is displayed yet.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

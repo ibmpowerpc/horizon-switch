@@ -108,8 +108,9 @@ DNS может задержать отмену/выход.
 Y — порт, L — offline-ник (по умолчанию `CraftRustNX`), A — подключиться.
 `LOGIN_ACCEPTED` означает получение login-профиля: тест сразу закрывает
 соединение, не переходя к конфигурации и игровому миру. Online-аутентификация
-и шифрование не реализованы. Сборка и host-тесты прошли; аппаратная проверка
-предстоит. См. [login-probe](login-probe/README.md).
+и шифрование в этом info-only варианте не реализованы. Он аппаратно подтвердил
+запрос шифрования; дальнейший обмен выполняет вариант ниже. См.
+[login-probe](login-probe/README.md).
 
 ## Зашифрованный offline login
 
@@ -117,6 +118,7 @@ Y — порт, L — offline-ник (по умолчанию `CraftRustNX`), A 
 `craftrustnx-encrypted-login-probe.nro`. В hbmenu это **CraftRustNX Encrypted
 Login Probe 0.2.0**. Управление X/Y/L/A/B/Plus то же. Тест выполняет RSA/AES-обмен
 без session join и показывает решение сервера. Сам флаг should_authenticate
-не считается доказательством отказа offline-профилю. Host-проверки прошли;
-SDK-криптография и LoginFinished на Switch ещё не проверены. Подробности —
+не считается доказательством отказа offline-профилю. На Switch Lite подтверждены
+`LOGIN_ACCEPTED`, `Encryption active: yes`, Error NONE и threshold 256
+для тестового Java 26.3 LAN-мира. Это пока вход до configuration/play. Подробности —
 [ENCRYPTED.md](login-probe/ENCRYPTED.md).

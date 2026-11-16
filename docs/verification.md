@@ -335,3 +335,34 @@ ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL; все 571 динамич
 - Все артефакты около 466 МиБ из 512; свободно около 16 GiB, резерв 10 GiB.
   Ранее переданные NRO сохранены отдельно. SDK-криптография и реальный
   зашифрованный LoginFinished на Switch пока не проверены.
+
+## Передача Encrypted Login Probe 0.2.0 через MTP
+
+2026-11-16 новый `craftrustnx-encrypted-login-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777265. Прежние NRO не заменялись.
+Обратное чтение подтвердило побайтовое совпадение: 563397 байт, SHA256
+`67a9b8c9c1fd3c1ff274cc1f61f1d05c931dd2fb0aa38f5f2dab81e6377c9405`.
+Рядом добавлены `craftrustnx-encrypted-notices.txt` и `craftrustnx-Apache-2.0.txt`
+(object IDs 16777266/16777267), оба также проверены обратным чтением.
+Временный helper/readbacks удалены. Аппаратный зашифрованный login ещё ожидается.
+
+## Аппаратный результат Encrypted Login Probe 0.2.0
+
+2026-11-16 фотография пользователя подтвердила на Switch Lite:
+Stage `LOGIN_ACCEPTED`, `Server should_authenticate: true`, Encryption active `yes`,
+Error `NONE`, Compression threshold `256`, Frames `3`, Received `226 bytes`.
+Сервер вернул тестовый профиль игрока `CraftRustNX`. Локальный адрес, порт
+и session UUID из фотографии не публикуются.
+
+Это аппаратное подтверждение базового пути SDK CSRNG → RSA PKCS#1 v1.5 →
+AES-CFB8 receive → compression framing → полный LoginFinished с 16-byte session UUID.
+Настоящий Java 26.3 LAN-мир принял offline-профиль без session join, несмотря на
+флаг true. При этом не проверены AES-CFB8 send, большие/реально zlib-сжатые тела
+на устройстве, другие серверы/версии, configuration/play и длительная стабильность.
+
+Подписи `Server name` / `Server UUID` в NRO 0.2.0 были ошибочны: UI выводит
+job.event.name/uuid из GameProfile, т.е. имя и UUID принятого **игрока**.
+В исходниках они заменены на `Accepted player` / `Player UUID`. Новый NRO ради
+этой косметической правки пока не собирался и не передавался; сохранены артефакт
+0.2.0 и его предыдущая SHA256-запись. Configuration acknowledgement не отправлялся,
+тест штатно закрыл соединение до конфигурации и входа в игровой мир.
