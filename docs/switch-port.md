@@ -136,7 +136,8 @@ The user also confirmed WORLD_DATA_OBSERVED on Switch Lite. This does not
 install terrain or justify PlayerLoaded.
 Next work needs a retained world representation and a measured GPU path.
 The [offline GPU inventory](switch-gpu-path-audit.md) confirms installed deko3d,
-UAM and EGL/GLES libraries, but no native GPU rendering or acceleration is proven.
+UAM and EGL/GLES libraries. The subsequent native deko3d triangle test passed
+on Switch Lite; EGL acceleration and renderer performance remain unverified.
 
 ## GPU bring-up 0.6.0
 
@@ -145,5 +146,5 @@ through a deko3d 0.5.0 C SDK bridge, with original UAM shaders embedded in RomFS
 Rust owns geometry, time, palette and button behavior; C owns libnx/deko3d calls.
 The bridge waits for queue idle before recycling shared command/uniform memory.
 This serialized diagnostic does not measure renderer performance or select the
-final backend. Native display, input response and teardown still need a device
-result. World caching, meshing, assets and Horizon/wgpu integration remain open.
+final backend. The user confirmed native triangle display/animation, A/B/X response and
+Plus exit on Switch Lite. Device performance/memory measurements remain open. World caching, meshing, assets and Horizon/wgpu integration remain open.

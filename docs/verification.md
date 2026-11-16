@@ -668,3 +668,18 @@ segments. Независимый обход встроенного RomFS под�
 в ignored `gpu-probe/build/mtp-transfer.json`.
 Аппаратный результат GPU пока ожидается: видимая анимация, pause/palette/reset,
 выход к summary и возврат в hbmenu проверяются пользователем отдельно от передачи.
+
+## Аппаратный результат Rust GPU Probe 0.6.0
+
+2026-11-16 пользователь подтвердил на Switch Lite: движущийся цветной
+треугольник отображается, A/B/X и выход через Plus работают. Это подтверждение
+выполнения оригинальных шейдеров и вывода Rust-generated кадров через native
+deko3d, изменения uniforms/палитры, паузы/сброса и выхода из пробы.
+Фото summary, frame count, GPU allocation bytes и измерения времени кадра
+не предоставлены, поэтому численные performance/memory claims не делаются.
+
+Проверен переданный NRO 0.6.0 с SHA256
+`b72a999422e01e0b77c3d1d12bfd831e82a450097de88bcc43f629027598b4f5`.
+Повторная сборка для фиксации результата не выполнялась. Это standalone
+serialized triangle smoke test; Horizon/wgpu, depth/mesh/texture pipeline,
+рендер сетевого мира и окончательный backend ещё не проверены.

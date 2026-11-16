@@ -36,6 +36,6 @@ and an EGL comparison remain unresolved.
 
 Verification before device use: eleven Rust tests, fmt/clippy, Cortex-A57
 cross-build, strict C SDK compile/link, NRO/ELF relocation checks, and independent
-RomFS traversal matching both shader files byte-for-byte. Hardware execution is
-still pending. Details: [Rust logic](rust/README.md), [SDK bridge](README-SDK.md)
+RomFS traversal matching both shader files byte-for-byte. The user confirmed visible animation, A/B/X controls and Plus exit on
+Switch Lite. No device performance or memory measurements were supplied. Details: [Rust logic](rust/README.md), [SDK bridge](README-SDK.md)
 and [project verification](../../../docs/verification.md).

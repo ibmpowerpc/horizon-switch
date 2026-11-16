@@ -34,8 +34,9 @@ structure in Rust. Host tests and a real Java 26.3 LAN connection passed with
 49 checked chunks and a block-state sample. The user also confirmed
 WORLD_DATA_OBSERVED on Switch Lite; exact hardware counters were not recorded.
 A separate [Rust GPU probe](platform/switch/gpu-probe/README.md) now builds a
-Rust-controlled triangle through a deko3d SDK bridge. Its hardware run is pending;
-this does not yet integrate Horizon's renderer.
+Rust-controlled triangle through a deko3d SDK bridge. The user confirmed visible
+animation, A/B/X controls and Plus exit on Switch Lite. This does not yet
+integrate Horizon's renderer or establish performance.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)
