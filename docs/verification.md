@@ -520,3 +520,28 @@ schema. Адрес/порт и session UUID в этот результат не 
 Прежние NRO не заменялись; временные helper/readback удалены после проверки.
 Host-проверка настоящего Java-сервера успешна, аппаратный запуск `.nro` на Switch
 всё ещё ожидается.
+
+## Аппаратный результат Play Session Probe 0.4.0
+
+2026-11-16 фотография пользователя подтвердила на Switch Lite:
+Stage `PLAY_SESSION_OBSERVED`, Error `NONE`, Encryption active `yes`,
+Server should_authenticate `true`, Compression `256`, Configuration ACK `yes`.
+Frames `1142`, Received `294818 bytes`, configuration/play packets `1139`,
+registry packets `32`, decoded configuration/play bytes `1914988`.
+Первый play ID `50`, body `110 bytes`; play packets `1102`, decoded play
+bytes `1698326`. Pose ACKs `1`, keepalive `1`, pong `0`, opaque chunks `49`,
+batch ACKs `41`; dimension `minecraft:overworld`, game mode `0`.
+Локальный адрес/порт, entity ID, положение и session UUID в запись не включены.
+
+Это аппаратное подтверждение структурного Login/позиции, IEEE float/double
+обработки и полного pose ACK, зашифрованных play-ответов, получения chunk bodies
+и подтверждения batch, а также keepalive на текущем Java 26.3 LAN-мире.
+Pong на устройстве в этом запуске не проверен (счётчик 0). Тест завершил
+соединение после наблюдения всех необходимых условий. Чанки и registry/light
+по-прежнему не разобраны семантически: PlayerLoaded не отправлялся, мира,
+физики, управления и рендера ещё нет. Следующий этап — структурный разбор
+registry/dimension и содержимого сетевых чанков.
+
+Сохранён переданный NRO 0.4.0 с прежней SHA256
+`c429b553268dff4395d76e1812b23ab57be6f6ff85021c6ae9e3e8428dd80dc4`.
+Повторной сборки или загрузок ради фиксации результата не выполнялось.

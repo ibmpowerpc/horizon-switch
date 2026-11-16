@@ -48,5 +48,6 @@ Reproduce host checks: [PLAY-SESSION-TESTS.md](tests/PLAY-SESSION-TESTS.md).
 
 The host runner also completed this exchange with the user's live Java 26.3 LAN
 world in 16.59 seconds: pose ACK, 49 opaque chunks, 41 batch ACKs and one
-keepalive reply. This uses the host OpenSSL backend; Switch execution of 0.4.0
-is still pending. See [verification](../../../docs/verification.md).
+keepalive reply. This uses the host OpenSSL backend. A subsequent physical Switch Lite run also
+passed: PLAY_SESSION_OBSERVED, Error NONE, one pose ACK, 49 opaque chunks,
+41 batch ACKs and one keepalive reply. Chunk schemas and terrain remain unloaded. See [verification](../../../docs/verification.md).

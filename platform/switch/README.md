@@ -152,5 +152,6 @@ Registry/NBT пока принимаются как непрозрачные д�
 Pose ACK, keepalive, opaque chunk и batch ACK. Возможна пауза около 15 секунд
 до keep-alive; весь тест ограничен 30 секундами после DNS.
 `PlayerLoaded` и движение не отправляются, мир не загружается и не отображается.
-Аппаратный результат этого этапа ещё ожидается. Подробности —
+На Switch Lite этот этап прошёл: `PLAY_SESSION_OBSERVED`, Error `NONE`,
+1 Pose ACK, 49 opaque chunks, 41 batch ACK и 1 keepalive. Подробности —
 [PLAY-SESSION.md](login-probe/PLAY-SESSION.md).

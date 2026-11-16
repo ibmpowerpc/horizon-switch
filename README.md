@@ -25,8 +25,9 @@ interpretation, world loading and rendering remain unimplemented in the probe.
 The [play-session probe](platform/switch/login-probe/PLAY-SESSION.md) passes host
 tests for parsed join data, teleport acknowledgements, opaque chunk batches and
 keep-alive replies, and completed that exchange with the user's real Java 26.3
-LAN world from the host. Switch hardware verification of this next stage is
-pending; it sends no PlayerLoaded and does not implement playable multiplayer.
+LAN world from the host and on Switch Lite: pose acknowledged, 49 opaque chunks,
+41 batch acknowledgements and a keep-alive reply, without error. It sends no
+PlayerLoaded and does not implement playable multiplayer or world rendering.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)
