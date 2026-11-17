@@ -1094,3 +1094,20 @@ translucent quads после sort. ASan/UBSan instrumented **только C harn
 Rust staticlib не инструментирована. Это локальная ABI проверка, не завершённый
 делегированный code review и не аппаратный texture/alpha/colour PASS. Изменения
 касаются только host tests/документации; новая NRO не требовалась.
+
+## MTP-передача Texture Probe 0.9.0
+
+2026-11-17 DBI 057e:201d (MTP model `Switch`): три новых файла записаны только
+в storage0x10001, description **1: SD Card**, каталог `switch/craftrustnx`:
+
+- `craftrustnx-texture-probe.nro`: object16777277, 315765 bytes.
+- `texture-probe-scene.bin`: object16777278, 78032 bytes.
+- `craftrustnx-texture-notices.txt`: object16777279, 16338 bytes.
+
+Обратное чтение подтвердило byte equality и все три SHA256, приведённые выше.
+Existing destination files не перезаписывались, прежняя аппаратно проверенная
+0.8 на SD не менялась. Игровые ресурсы остаются private; Git содержит только
+код и этот verification record. Ignored report:
+`texture-probe/build/mtp-verification.json`. Temporary transfer helper и
+readbacks очищены после проверки. Аппаратный результат новой 0.9 ожидается:
+девять текстурных фигур, cutout flower, glass/depth, края atlas и управление.
