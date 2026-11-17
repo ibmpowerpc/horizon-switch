@@ -15,6 +15,7 @@ path = "src/lib.rs"
 # Existing Horizon Rust model decoder/resolver/baker; reused read-only so the
 # host and the game share one geometry implementation.
 horizon-assets = { path = "../../crates/horizon-assets" }
+png = "=0.18.1"
 serde_json = "=1.0.154"
 sha2 = "=0.10.9"
 

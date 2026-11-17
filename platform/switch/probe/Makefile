@@ -133,6 +133,18 @@ GRAPHICS_SHADER_DIR := ../terrain-probe/shaders
 GRAPHICS_SHADER_STEM := terrain
 DEFINES += -Wframe-larger-than=32768
 endif
+ifneq ($(strip $(TEXTURE_ARCHIVE)),)
+TARGET := craftrustnx-texture-probe
+BUILD := build-texture
+APP_TITLE := CraftRustNX Rust Texture Probe
+APP_VERSION := 0.9.0
+SOURCES := ../texture-probe/source ../texture-probe/native
+INCLUDES += ../texture-probe/include ../terrain-probe/include
+ROMFS := build-texture-romfs
+GRAPHICS_SHADER_DIR := ../texture-probe/shaders
+GRAPHICS_SHADER_STEM := texture
+DEFINES += -Wframe-larger-than=32768
+endif
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -155,6 +167,9 @@ LIBS := $(GPU_ARCHIVE) -ldeko3d -lnx
 endif
 ifneq ($(strip $(TERRAIN_ARCHIVE)),)
 LIBS := $(TERRAIN_ARCHIVE) -ldeko3d -lnx
+endif
+ifneq ($(strip $(TEXTURE_ARCHIVE)),)
+LIBS := $(TEXTURE_ARCHIVE) -ldeko3d -lnx
 endif
 ifneq ($(strip $(ENCRYPTED_LOGIN)),)
 LIBS += -lmbedcrypto
@@ -257,7 +272,7 @@ endif
 .PHONY: $(BUILD) clean all
 
 #---------------------------------------------------------------------------------
-ifneq ($(strip $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE)),)
+ifneq ($(strip $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE) $(TEXTURE_ARCHIVE)),)
 GPU_SHADERS := $(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_vsh.dksh $(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_fsh.dksh
 export ROMFS_DEPS := $(addprefix $(CURDIR)/,$(GPU_SHADERS))
 all: $(GPU_SHADERS) $(BUILD)
@@ -319,7 +334,7 @@ $(OUTPUT).nso	:	$(OUTPUT).elf
 
 endif
 
-$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE)
+$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE) $(TEXTURE_ARCHIVE)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
 

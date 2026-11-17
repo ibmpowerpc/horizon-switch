@@ -1,0 +1,209 @@
+/* SDK lifecycle and file/pad I/O. Rust validates, controls camera and sorts. */
+#include "texture_app.h"
+#include <inttypes.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <switch.h>
+_Static_assert(sizeof(struct tx_vertex) == 24, "texture vertex ABI");
+_Static_assert(sizeof(struct tx_draw) == 16, "draw ABI");
+_Static_assert(sizeof(struct tx_scene_info) == 48, "scene ABI");
+static const char *TITLE = "CraftRustNX: Rust Texture Probe 0.9.0";
+static const char *SCOPE = "Static models and textures. Neutral tint; no "
+                           "biome/light/animation or gameplay.";
+static const char *CONTROLS =
+    "A: orbit | B: background | X: reset | right stick: camera | ZL/ZR: zoom";
+static const char *PATH = "sdmc:/switch/craftrustnx/texture-probe-scene.bin";
+static const char *EXIT_LABEL = "Plus: return to hbmenu";
+static void wait_exit(PadState *pad) {
+  while (appletMainLoop()) {
+    padUpdate(pad);
+    if (padGetButtonsDown(pad) & HidNpadButton_Plus)
+      break;
+    consoleUpdate(NULL);
+  }
+}
+struct scene {
+  uint8_t *bytes;
+  struct tx_vertex *vertices;
+  struct tx_draw draws[TX_MAX_DRAWS];
+  struct tx_scene_info info;
+};
+static void release_scene(struct scene *s) {
+  free(s->bytes);
+  free(s->vertices);
+  s->bytes = NULL;
+  s->vertices = NULL;
+}
+static int32_t load_scene(struct scene *s) {
+  FILE *f = fopen(PATH, "rb");
+  if (!f)
+    return -101;
+  if (fseek(f, 0, SEEK_END) != 0) {
+    fclose(f);
+    return -102;
+  }
+  const long size = ftell(f);
+  if (size < 64 || size > 16 * 1024 * 1024 || fseek(f, 0, SEEK_SET) != 0) {
+    fclose(f);
+    return -103;
+  }
+  size_t capacity = ((size_t)size - 64) / 24;
+  if (capacity > TX_MAX_VERTICES)
+    capacity = TX_MAX_VERTICES;
+  if (capacity == 0) {
+    fclose(f);
+    return -103;
+  }
+  s->bytes = malloc((size_t)size);
+  s->vertices = malloc(capacity * sizeof(*s->vertices));
+  if (!s->bytes || !s->vertices) {
+    fclose(f);
+    release_scene(s);
+    return -104;
+  }
+  const size_t n = fread(s->bytes, 1, (size_t)size, f);
+  const int tail = fgetc(f);
+  const bool complete = n == (size_t)size && tail == EOF && !ferror(f);
+  fclose(f);
+  if (!complete) {
+    release_scene(s);
+    return -105;
+  }
+  const int32_t result =
+      craftrustnx_texture_decode(s->bytes, (size_t)size, s->vertices, capacity,
+                                 s->draws, TX_MAX_DRAWS, &s->info);
+  if (result != 0)
+    release_scene(s);
+  return result;
+}
+static uint32_t input(uint64_t down, uint64_t held) {
+  uint32_t b = 0;
+  if (down & HidNpadButton_A)
+    b |= TP_ORBIT;
+  if (down & HidNpadButton_B)
+    b |= TP_BACKGROUND;
+  if (down & HidNpadButton_X)
+    b |= TP_RESET;
+  if (down & HidNpadButton_Plus)
+    b |= TP_EXIT;
+  if (held & HidNpadButton_ZL)
+    b |= TP_ZOOM_IN;
+  if (held & HidNpadButton_ZR)
+    b |= TP_ZOOM_OUT;
+  return b;
+}
+int main(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+  consoleInit(NULL);
+  padConfigureInput(1, HidNpadStyleSet_NpadStandard);
+  PadState pad;
+  padInitializeDefault(&pad);
+  puts(TITLE);
+  puts(SCOPE);
+  puts(CONTROLS);
+  puts(PATH);
+  puts("Check nine textured shapes, flower holes, glass/depth and sprite "
+       "edges.");
+  struct scene scene = {0};
+  int32_t status = load_scene(&scene);
+  const Result romfs = romfsInit();
+  if (status != 0 || R_FAILED(romfs)) {
+    printf("Scene status: %" PRId32 " | RomFS: 0x%08x\n", status,
+           (unsigned)romfs);
+    puts("Copy texture-probe-scene.bin beside this NRO and relaunch.");
+    puts(EXIT_LABEL);
+    wait_exit(&pad);
+    release_scene(&scene);
+    if (R_SUCCEEDED(romfs))
+      romfsExit();
+    consoleExit(NULL);
+    return 1;
+  }
+  printf("Rust validated %" PRIu32 " vertices, %" PRIu32
+         " draws, atlas %" PRIu32 " x %" PRIu32 ".\n",
+         scene.info.mesh.vertex_count, scene.info.draw_count, scene.info.width,
+         scene.info.height);
+  puts("A: start 3D | Plus: exit");
+  bool start = false;
+  while (appletMainLoop()) {
+    padUpdate(&pad);
+    uint64_t down = padGetButtonsDown(&pad);
+    if (down & HidNpadButton_Plus)
+      break;
+    if (down & HidNpadButton_A) {
+      start = true;
+      break;
+    }
+    consoleUpdate(NULL);
+  }
+  if (!start) {
+    release_scene(&scene);
+    romfsExit();
+    consoleExit(NULL);
+    return 0;
+  }
+  consoleExit(NULL);
+  status = tx_graphics_initialize();
+  if (status == 0)
+    status = tx_graphics_atlas(scene.bytes + scene.info.atlas_offset,
+                               scene.info.width, scene.info.height);
+  free(scene.bytes);
+  scene.bytes = NULL;
+  struct tp_app_state state = {0};
+  struct tp_app_frame frame = {0};
+  float previous_mvp[16] = {0};
+  bool have_mesh = false;
+  const uint64_t tick = armGetSystemTick();
+  uint64_t frames = 0;
+  bool closing = false;
+  while (status == 0) {
+    if (!appletMainLoop()) {
+      closing = true;
+      break;
+    }
+    padUpdate(&pad);
+    HidAnalogStickState stick = padGetStickPos(&pad, 1);
+    status = craftrustnx_terrain_update(
+        &state, &scene.info.mesh, armTicksToNs(armGetSystemTick() - tick),
+        input(padGetButtonsDown(&pad), padGetButtons(&pad)), stick.x / 32767.0f,
+        stick.y / 32767.0f, &frame);
+    if (status != 0 || frame.should_exit)
+      break;
+    if (!have_mesh ||
+        memcmp(previous_mvp, frame.mvp, sizeof(previous_mvp)) != 0) {
+      status = craftrustnx_texture_sort(
+          scene.vertices, scene.info.mesh.vertex_count, scene.draws,
+          scene.info.draw_count, frame.mvp);
+      if (status == 0)
+        status =
+            tx_graphics_upload(scene.vertices, scene.info.mesh.vertex_count,
+                               scene.draws, scene.info.draw_count);
+      if (status != 0)
+        break;
+      memcpy(previous_mvp, frame.mvp, sizeof(previous_mvp));
+      have_mesh = true;
+    }
+    status = tx_graphics_present(frame.mvp, frame.clear);
+    if (status == 0)
+      ++frames;
+  }
+  const uint64_t gpu_bytes = tx_graphics_allocated_bytes();
+  tx_graphics_shutdown();
+  romfsExit();
+  release_scene(&scene);
+  if (!closing) {
+    consoleInit(NULL);
+    puts(TITLE);
+    printf("Status: %" PRId32 " | submitted frames: %" PRIu64
+           " | GPU blocks: %" PRIu64 " bytes\n",
+           status, frames, gpu_bytes);
+    puts(SCOPE);
+    puts(EXIT_LABEL);
+    wait_exit(&pad);
+    consoleExit(NULL);
+  }
+  return status == 0 ? 0 : 1;
+}

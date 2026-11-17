@@ -12,6 +12,9 @@ crate-type = ["staticlib"]
 [dependencies]
 libm = "=0.2.16"
 
+[features]
+textured = []
+
 [profile.release]
 panic = "abort"
 debug = 0

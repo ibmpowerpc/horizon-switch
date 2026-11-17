@@ -1003,3 +1003,72 @@ NRO SHA256 `1809aa952787c4824ec17084d23fac9f2b704a6d279adc739441948c2dba05c4`
 и отдельная occlusion/precision проверка не сообщались и не заявляются.
 Текстуры/alpha, biome/terrain light, live world и gameplay остаются следующими
 этапами. Новых билдов или повторной передачи после этого ответа не требовалось.
+
+## Подготовка статической текстурной сцены 0.9
+
+2026-11-17 добавлены Rust atlas builder и отдельный exporter текстурной пробы.
+Использованы только ранее подготовленные private assets Minecraft 26.3,
+protocol777, SHA1 `e877b6a07acd633fb3bb475002175cec036e7b87` и signatures девяти
+моделей пробы 0.8. Все 6906 manifest entries проверяются по size/SHA256 до baking.
+Shared host input reader проверяет manifest array schema, pins, paths, case
+collisions, symlinks, count/byte limits и hash сцены к manifest. Проверочный
+`atlas_check` выводит aggregate JSON без записи ресурсов или отчётов.
+
+12 baked requests дают 86 quads и 10 sprites. Детерминированный статический atlas:
+128×128 RGBA8, 65536 bytes, двухпиксельная экструзия краёв/углов. Четыре sprite
+содержат alpha<255, частичного alpha нет; шесть quads имеют force_translucent.
+Проверены именно исходные baked UV: восемь quads имеют float-погрешность у нуля,
+минимум -5.9604645e-8; ни одна не выходит за unit interval более чем на 1e-6.
+Exporter clamp-ит только эту погрешность перед atlas mapping; настоящее повторение
+UV вне sprite не поддерживается. PNG expansion сохраняет straight source RGBA;
+16-bit, APNG и animated mcmeta дают явный отказ без frame-zero fallback.
+
+Private `texture-probe-scene.bin`: CTTEX001, header64, vertex24 (position/UV/RGBA),
+три draw ranges по 16 bytes, затем raw atlas. 78032 bytes, SHA256
+`0775f880c9ceea0afa9cb7a4bbabf2e68862ceddabff55c97925b5f375ce22b6`.
+516 vertices: 396 opaque, 84 cutout, 36 translucent. Независимый Python разбор
+подтвердил header, exact length, bounds/finite positions, UV0..1 и все draw ranges.
+Нейтральный белый tint; biome/world light, animation, fluids и gameplay не
+реализованы. Это отдельная статическая сцена, не live terrain.
+
+Switch runtime остаётся no_std Rust: two-pass transactional scene validation,
+прежняя camera пробы 0.8, allocation-free sort целых translucent quads по clip-w
+от дальних к ближним. Feature `textured` отключён в старой пробе 0.8. Новые SDK
+texture/sampler/blend symbols проверены compile-only в существующем SDK image;
+точные API и lifetime constraints записаны в switch-texture-path-audit.md.
+Аппаратный texture/alpha/colour PASS пока не заявляется.
+
+## Сборка Texture Probe 0.9.0
+
+Parent integration исправила draft SDK код до принятия: реальные
+`DkCopyBuf`/`DkImageView`/`DkImageRect`, sampler/descriptor signatures, blend enable
+через ColorState, viewport/scissor/color-write bindings, 64-bit uniform GPU
+address, точный source byte count вместо rounded staging size. Удалены
+несуществующие image-destroy calls; заменена рекурсивная standalone build схема
+на общий probe Makefile. Старый atlas не освобождается до успешного transfer;
+image backing и descriptor storage освобождаются после queue idle. Три UBO slots
+по 256 bytes предотвращают перезапись mode до чтения GPU. Draw metadata остаётся
+в фиксированном CPU массиве. Это serialized diagnostic SDK path.
+
+`bash scripts/build-switch.sh docker texture` проходит в существующем offline
+SDK image. NRO: `craftrustnx-texture-probe.nro`, 315765 bytes, SHA256
+`a0c0cbaedd16fa1b50d3c5f0a47a9fcd384faf114dc84c163297e412f3b9e538`.
+Packaging check: NRO0/ASET/NACP, title **CraftRustNX Rust Texture Probe**, version
+0.9.0; ELF64 LE AArch64 DYN, DT_TEXTREL отсутствует, 416 dynamic relocations
+попадают в writable segments. RomFS содержит только два original DKSH shaders.
+Private scene и SDK/libm notices находятся рядом с NRO; notices SHA256
+`31991ba68793f056a539639b33793f465c95f7762e03e450119196695f9fb620`.
+
+Scoped checks: 52 host model-tool tests (41 library, 3 CLI, 7 old scene,
+1 textured scene), 8 Rust runtime tests; all-target clippy `-D warnings` и fmt
+для обоих standalone crates, shell syntax, строгий SDK C compile и UAM shaders.
+Full upstream `pr_ready.py` не запускался: файл отсутствует в sparse checkout;
+полная Horizon workspace сборка не входит в эту проверку. Изменений protocol
+кодека нет.
+
+Target terrain 0.8.0 также пересобран без feature `textured` и прошёл packaging
+check: 295029 bytes, 412 relocations. Новый build SHA256
+`8c67e1d66197976186a39f49b495d0d8b98382bd86438ba99e55e067f0c6da75` отличается
+от ранее переданного и проверенного на Switch; повторный hardware PASS ему не
+приписывается. Ранее переданный SD-файл не менялся. 0.9 на устройство пока не
+передавалась и аппаратной проверки textures/alpha/colour не проходила.

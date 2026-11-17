@@ -283,6 +283,17 @@ covered while changing platform implementations.
 
 # Workspace constraints
 
+## Delegation preference
+
+For substantial Switch work, use the codex-orchestrator skill and delegate
+bounded tasks through T3. The user's current replacement for DeepSeek is the
+native Grok provider (`grok`, model `grok-4.7`); Kiro (`kiro`, model
+`qwen3-coder-next`) remains authorized. Do not silently switch provider routes or
+models after an error. The user explicitly authorized Kiro to finish the static
+texture-atlas work, including its real-resource integration, if the other lane
+cannot finish. Codex owns interfaces, integration and final verification. Give
+children disjoint file ownership and do not permit recursive delegation.
+
 ## Disk space
 
 On 2026-11-17 the user removed the earlier disk-conservation requirement.

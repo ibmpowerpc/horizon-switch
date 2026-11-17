@@ -4,6 +4,9 @@
 
 use core::{mem, slice};
 
+#[cfg(feature = "textured")]
+pub mod textured;
+
 pub const MAX_VERTICES: usize = 262_140;
 pub const MAX_FILE_BYTES: usize = 48 + 16 * MAX_VERTICES;
 pub const ORBIT: u32 = 1;

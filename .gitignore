@@ -60,3 +60,5 @@
 /platform/switch/probe/build-column-snapshot/
 /platform/switch/probe/build-terrain/
 /platform/switch/probe/build-terrain-romfs/
+/platform/switch/probe/build-texture/
+/platform/switch/probe/build-texture-romfs/
