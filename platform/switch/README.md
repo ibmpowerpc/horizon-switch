@@ -189,5 +189,6 @@ block/biome ID через Rust в статических буферах и св�
 `Snapshot sample agrees: yes`. Это снимок принятого пакета, без применения
 последующих block/light updates, рендера мира или PlayerLoaded. Host fixtures
 и live-проверка Java 26.3 с компьютера прошли: 24 секции, 98,304 состояния блоков
-и 1,536 biome cells; образец совпал. Аппаратный 0.7.0 результат пока ожидается. Подробности —
+и 1,536 biome cells; образец совпал. Фото Switch Lite также подтвердило `COLUMN_SNAPSHOT_OBSERVED`, Error NONE,
+24 сохранённые секции и совпадение sample. Подробности —
 [COLUMN-SNAPSHOT.md](login-probe/COLUMN-SNAPSHOT.md).

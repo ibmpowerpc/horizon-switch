@@ -10,7 +10,7 @@ Open **CraftRustNX Column Snapshot Probe 0.7.0** in hbmenu. X edits the host
 nickname, A connects, B cancels and Plus exits. Server acceptance and the same
 RSA/AES/no-session-join policy are unchanged.
 
-Expected success is **COLUMN_SNAPSHOT_OBSERVED**, Error NONE, snapshot status0,
+Expected success is **COLUMN_SNAPSHOT_OBSERVED**, Error NONE, snapshot status 0,
 nonzero section/block/biome counts and **Snapshot sample agrees: yes**. The probe
 also requires parsed Login/pose ACK, a completed chunk batch and a keepalive
 response. It retains the column containing the block below the acknowledged

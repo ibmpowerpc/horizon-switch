@@ -758,3 +758,32 @@ raw column, адрес/порт, положение игрока и session UUID
 Прежние NRO не заменялись. Временный transfer helper/readback удалены после
 проверки; JSON отчёт сохранён в ignored `tests/build/mtp-column-snapshot.json`.
 Аппаратный 0.7.0 результат пока ожидается; host live pass не выдаётся за него.
+
+## Аппаратный результат Column Snapshot Probe 0.7.0
+
+2026-11-17 фотография IMG_0639 от пользователя подтверждает на Switch Lite:
+`COLUMN_SNAPSHOT_OBSERVED`, `Error: NONE`, encryption active yes,
+server should_authenticate true, compression 256, configuration ACK yes.
+Snapshot: 24 sections, 98,304 blocks, 1,536 biomes, status 0;
+`Snapshot sample agrees: yes`. Это подтверждает вызов полного Rust column copy
+и сверку sample из сохранённых caller-owned массивов на устройстве.
+
+Frames 943, received 423553 bytes; configuration/play packets 940, registries 32,
+decoded configuration/play bytes 2299498. Первый play ID 50, body 110 bytes;
+play packets 903, decoded play bytes 2082836. Pose ACK 1, keepalive 1, pong 0,
+received/checked chunks 49, batch ACK 41. Dimension minecraft:overworld, mode 0.
+Dimension entries 4, biome entries 67; min Y -64, height 384, skylight yes.
+Checked sections 1176, heightmaps 147; light updates 0, sky layers 174,
+block layers 259. На фото raw sample state ID 121, biome ID 3. Адрес/порт,
+позиция, entity ID, player/session UUID в эту запись не включены.
+
+Проверен переданный NRO 0.7.0 с SHA256
+`c10178bb5623d804e577398f33e6b619fb0ae8947d9d5a46ac2503007e6c3f16`.
+Повторная сборка не требовалась. Последующие block/light updates не применяются;
+это snapshot приёма, а не live world cache. Terrain renderer, block/model
+semantics, сохранённое освещение и PlayerLoaded не реализованы.
+
+Следующий этап требует semantic state tables и моделей из пользовательской
+установки pinned Java 26.3. В стандартных локальных папках Minecraft/Prism и
+`.local/horizon-client/26.3` ресурсы не найдены; у пользователя запрошено
+расположение установки. Никаких game files или prepared resources не добавлено.

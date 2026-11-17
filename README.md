@@ -41,7 +41,9 @@ The [column-snapshot probe](platform/switch/login-probe/COLUMN-SNAPSHOT.md)
 now normalizes and retains one received column in caller-owned buffers through
 Rust, with independent whole-array host checks. A live Java 26.3 host run also
 passed: 24 sections, 98,304 block states and 1,536 biome cells, with a matching
-pose sample. Switch validation remains pending; this is not yet a live terrain cache.
+pose sample. A Switch Lite photo also confirms COLUMN_SNAPSHOT_OBSERVED,
+24 retained sections and a matching sample without error. This is not yet a
+live terrain cache or terrain renderer.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)
