@@ -1072,3 +1072,25 @@ check: 295029 bytes, 412 relocations. Новый build SHA256
 от ранее переданного и проверенного на Switch; повторный hardware PASS ему не
 приписывается. Ранее переданный SD-файл не менялся. 0.9 на устройство пока не
 передавалась и аппаратной проверки textures/alpha/colour не проходила.
+
+## Дополнительная проверка C ABI текстурной сцены
+
+Локально доведены до запуска и проверены сохранённые независимые C fixtures:
+`bash platform/switch/texture-probe/tests/run-host.sh`. Исправлена отсутствующая
+подкоманда `cargo build`; optional scene reader дополнен проверкой bounds/counts
+до allocation/length arithmetic и отказом на truncated read.
+
+Результат: **505 checks, failures=0**. Проверены synthetic little-endian vectors,
+unaligned input, invalid header/bounds/UV, incomplete/trailing input, output
+capacities, draw gaps/overlap/order, canonical groups, верхние limits и null
+arguments; failures zero info и не меняют vertex/draw output. Сортировка сохраняет
+opaque/cutout prefix и целые шестивершинные quads; независимые depth keys
+32/33/54 подтверждают порядок, включая повторный вызов и отрицательные depths.
+Прежние mesh/camera exports также доступны с feature `textured`.
+
+На настоящем private файле проверены 516 vertices, 3 draws, atlas128×128,
+побайтовое совпадение decoded vertex/draw records и сохранность всех шести
+translucent quads после sort. ASan/UBSan instrumented **только C harness**;
+Rust staticlib не инструментирована. Это локальная ABI проверка, не завершённый
+делегированный code review и не аппаратный texture/alpha/colour PASS. Изменения
+касаются только host tests/документации; новая NRO не требовалась.

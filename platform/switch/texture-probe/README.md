@@ -38,3 +38,16 @@ submission only. The original 0.8 build leaves that feature disabled.
 Host checks cover binary layout, invalid-input rollback and sorting. SDK compile
 and shader checks establish buildability only. No texture, alpha or colour result
 is marked hardware-passed until the user runs this NRO.
+
+Run the independent C ABI fixtures against the host Rust static library:
+
+```sh
+bash platform/switch/texture-probe/tests/run-host.sh
+```
+
+The runner uses cached dependencies offline, then links a C harness with
+ASan/UBSan. It checks synthetic malformed scenes, complete draw ranges,
+transactional failures, whole-quad sorting and the real private scene when
+present. The C translation unit is instrumented; Rust is not. The verified local
+run passed 505 assertions with the 516-vertex scene. These checks do not exercise
+deko3d or establish a hardware texture pass.
