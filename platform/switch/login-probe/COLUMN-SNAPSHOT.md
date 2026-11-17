@@ -47,6 +47,7 @@ python3 tools/test_switch_world_transport.py path/to/column-snapshot-runner --sn
 After the previous endpoint timed out, the user supplied a current endpoint.
 The live Java 26.3 host run passed in 16.06 seconds: 24 sections, 98,304 states,
 1,536 biome cells and a matching pose sample, with encrypted login and keepalive.
-This used the host OpenSSL backend and C ASan/UBSan. Hardware 0.7.0 validation
-is still pending.
-World Data 0.5.0 and GPU 0.6.0 hardware passes do not replace this new check.
+This used the host OpenSSL backend and C ASan/UBSan. The subsequent Switch Lite photo
+confirms COLUMN_SNAPSHOT_OBSERVED, Error NONE, 24 sections / 98,304 states /
+1,536 biome cells, snapshot status 0 and a matching sample. This confirms the
+0.7.0 snapshot on hardware; live updates and terrain rendering remain unimplemented.
