@@ -58,3 +58,5 @@
 /platform/switch/probe/build-gpu-romfs/
 
 /platform/switch/probe/build-column-snapshot/
+/platform/switch/probe/build-terrain/
+/platform/switch/probe/build-terrain-romfs/

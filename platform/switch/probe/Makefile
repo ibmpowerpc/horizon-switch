@@ -117,6 +117,20 @@ APP_VERSION := 0.6.0
 SOURCES := source-gpu ../gpu-probe/native
 INCLUDES += ../gpu-probe/include
 ROMFS := build-gpu-romfs
+GRAPHICS_SHADER_DIR := ../gpu-probe/shaders
+GRAPHICS_SHADER_STEM := probe
+DEFINES += -Wframe-larger-than=32768
+endif
+ifneq ($(strip $(TERRAIN_ARCHIVE)),)
+TARGET := craftrustnx-terrain-probe
+BUILD := build-terrain
+APP_TITLE := CraftRustNX Rust Model Mesh Probe
+APP_VERSION := 0.8.0
+SOURCES := ../terrain-probe/source ../terrain-probe/native
+INCLUDES += ../terrain-probe/include
+ROMFS := build-terrain-romfs
+GRAPHICS_SHADER_DIR := ../terrain-probe/shaders
+GRAPHICS_SHADER_STEM := terrain
 DEFINES += -Wframe-larger-than=32768
 endif
 
@@ -138,6 +152,9 @@ LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*
 LIBS	:= $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) -lnx $(if $(strip $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE)),-lsysbase,)
 ifneq ($(strip $(GPU_ARCHIVE)),)
 LIBS := $(GPU_ARCHIVE) -ldeko3d -lnx
+endif
+ifneq ($(strip $(TERRAIN_ARCHIVE)),)
+LIBS := $(TERRAIN_ARCHIVE) -ldeko3d -lnx
 endif
 ifneq ($(strip $(ENCRYPTED_LOGIN)),)
 LIBS += -lmbedcrypto
@@ -240,16 +257,16 @@ endif
 .PHONY: $(BUILD) clean all
 
 #---------------------------------------------------------------------------------
-ifneq ($(strip $(GPU_ARCHIVE)),)
-GPU_SHADERS := $(ROMFS)/shaders/probe_vsh.dksh $(ROMFS)/shaders/probe_fsh.dksh
+ifneq ($(strip $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE)),)
+GPU_SHADERS := $(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_vsh.dksh $(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_fsh.dksh
 export ROMFS_DEPS := $(addprefix $(CURDIR)/,$(GPU_SHADERS))
 all: $(GPU_SHADERS) $(BUILD)
 
-$(ROMFS)/shaders/probe_vsh.dksh: ../gpu-probe/shaders/probe_vsh.glsl
+$(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_vsh.dksh: $(GRAPHICS_SHADER_DIR)/$(GRAPHICS_SHADER_STEM)_vsh.glsl
 	@mkdir -p $(dir $@)
 	uam -s vert -o $@ $<
 
-$(ROMFS)/shaders/probe_fsh.dksh: ../gpu-probe/shaders/probe_fsh.glsl
+$(ROMFS)/shaders/$(GRAPHICS_SHADER_STEM)_fsh.dksh: $(GRAPHICS_SHADER_DIR)/$(GRAPHICS_SHADER_STEM)_fsh.glsl
 	@mkdir -p $(dir $@)
 	uam -s frag -o $@ $<
 
@@ -302,7 +319,7 @@ $(OUTPUT).nso	:	$(OUTPUT).elf
 
 endif
 
-$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) $(GPU_ARCHIVE)
+$(OUTPUT).elf	:	$(OFILES) $(RUST_ARCHIVE) $(STD_ARCHIVE) $(NET_ARCHIVE) $(LOGIN_ARCHIVE) $(GPU_ARCHIVE) $(TERRAIN_ARCHIVE)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
 

@@ -324,12 +324,16 @@ mod tests {
     struct Temp(PathBuf);
     impl Temp {
         fn new() -> Self {
+            static UNIQUE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let unique = UNIQUE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let stamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            let p = std::env::temp_dir()
-                .join(format!("model-prep-test-{}-{stamp}", std::process::id()));
+            let p = std::env::temp_dir().join(format!(
+                "model-prep-test-{}-{stamp}-{unique}",
+                std::process::id()
+            ));
             fs::create_dir(&p).unwrap();
             Self(p)
         }

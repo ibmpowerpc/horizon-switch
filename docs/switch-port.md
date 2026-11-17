@@ -148,3 +148,16 @@ The bridge waits for queue idle before recycling shared command/uniform memory.
 This serialized diagnostic does not measure renderer performance or select the
 final backend. The user confirmed native triangle display/animation, A/B/X response and
 Plus exit on Switch Lite. Device performance/memory measurements remain open. World caching, meshing, assets and Horizon/wgpu integration remain open.
+
+## Model geometry probe 0.8.0
+
+The host resource path now includes canonical state properties, complete pinned
+blockstate selection and reuse of Horizon's Rust ModelLibrary/bake_block_model.
+All 7856 unique selected model/rotation requests bake successfully (79,851 quads).
+The [mesh probe](../platform/switch/terrain-probe/README.md) uses nine named states
+as a static, untextured diagnostic scene. Rust owns mesh validation/camera;
+deko3d handles aligned vertex uploads, depth and presentation through a C shim.
+NRO/ELF, host C/Rust and synthetic checks pass; MTP copy/readback passed.
+The user confirmed nine visible shapes and all stated controls on Switch Lite.
+This does not implement live
+terrain, textures/alpha, lighting, block entities or playable multiplayer.

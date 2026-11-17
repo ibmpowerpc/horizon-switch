@@ -181,6 +181,17 @@ A — пауза, B — палитра, X — сброс, Plus — резуль�
 через Plus. Измерений FPS/памяти пока нет.
 См. [gpu-probe](gpu-probe/README.md).
 
+## Настоящая геометрия моделей: Rust Model Mesh Probe 0.8.0
+
+`bash scripts/build-switch.sh docker terrain` собирает отдельную пробу девяти
+статичных моделей из пользовательских ресурсов Java 26.3. Геометрию запекает
+Rust baker Horizon, Rust на Switch проверяет mesh и управляет камерой; native
+SDK-мост загружает вершины и использует depth buffer. Текстуры, alpha, освещение
+мира и live chunks пока не реализованы. Подготовка private mesh и управление:
+[terrain-probe](terrain-probe/README.md). NRO, mesh и notices переданы на SD Card
+с обратным чтением. Пользователь подтвердил девять фигур и работу всех
+указанных controls на Switch Lite; это пока статичная сцена без текстур.
+
 ## Снимок полной колонки
 
 `bash scripts/build-switch.sh docker column-snapshot` собирает отдельный

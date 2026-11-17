@@ -16,6 +16,13 @@ case "$variant" in
     native_args=("GPU_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("GPU_ARCHIVE=/workspace/$archive_rel")
     ;;
+  terrain)
+    bash "$project_dir/platform/switch/terrain-probe/build.sh"
+    target=craftrustnx-terrain-probe
+    archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_terrain_probe.a
+    native_args=("TERRAIN_ARCHIVE=$project_dir/$archive_rel")
+    docker_args=("TERRAIN_ARCHIVE=/workspace/$archive_rel")
+    ;;
   rust)
     bash "$project_dir/platform/switch/rust-probe/build.sh"
     target=craftrustnx-rust-probe
@@ -69,7 +76,7 @@ case "$variant" in
       fi
     fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot or gpu.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot, gpu or terrain.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -87,7 +94,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|gpu]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|gpu|terrain]' >&2
     exit 2
     ;;
 esac
@@ -97,6 +104,14 @@ cp "$probe_dir/$target.nro" "$project_dir/dist/switch/craftrustnx/"
 if [[ "$variant" == gpu ]]; then
   cp "$project_dir/platform/switch/gpu-probe/SDK-NOTICES.txt" \
     "$project_dir/dist/switch/craftrustnx/craftrustnx-gpu-notices.txt"
+fi
+if [[ "$variant" == terrain ]]; then
+  cp "$project_dir/platform/switch/terrain-probe/SDK-NOTICES.txt" \
+    "$project_dir/dist/switch/craftrustnx/craftrustnx-terrain-notices.txt"
+  mesh="$project_dir/.local/switch-models/26.3/terrain-probe-mesh.bin"
+  if [[ -f "$mesh" ]]; then
+    cp "$mesh" "$project_dir/dist/switch/craftrustnx/terrain-probe-mesh.bin"
+  fi
 fi
 echo "NRO: $project_dir/dist/switch/craftrustnx/$target.nro"
 python3 "$project_dir/platform/switch/check-budget.py"

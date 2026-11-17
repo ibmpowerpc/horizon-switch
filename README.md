@@ -10,7 +10,7 @@ Hardware input and a C/Rust ABI probe have been tested on a real Switch Lite
 (2000 checks, zero errors). A project-local libc layout patch passes the
 compile-only ABI audit. All six checks in the isolated Rust std runtime probe
 passed on Switch Lite: allocation, time, main-thread TLS, thread spawn/join,
-mutex/condition-variable synchronization and worker TLS destructors. Graphics, sound and playable multiplayer
+mutex/condition-variable synchronization and worker TLS destructors. Game rendering, sound and playable multiplayer
 on Switch remain to be implemented and tested.
 The isolated Java server status probe passed its host TCP fixtures, and the user
 confirmed `DONE` with a recognizable server response on Switch Lite. The status
@@ -48,12 +48,18 @@ Offline [asset staging](platform/switch/resources/README.md) and the
 [semantic-state exporter](tools/switch_state_facts/README.md) now prepare local
 inputs from the user's pinned Java 26.3 installation. The parent verified 6906
 asset files and 35,723 state records with canonical properties. These ignored
-inputs are not distributed; model baking, texture atlases and terrain rendering
+inputs are not distributed; texture atlases and live terrain rendering
 remain to be implemented.
 The [Rust model preparer](tools/switch_model_prep/README.md) now verifies asset
 hashes and maps all 35,723 states to ordered model selections, preserving weighted
 alternatives. All selections agree with an independent evaluation of the local
-blockstate definitions. This is preparation data; no geometry is baked yet.
+blockstate definitions. The host now reuses Horizon's resolver/block baker for
+7856 model/rotation requests (79,851 quads). A separate
+[Rust Model Mesh Probe 0.8.0](platform/switch/terrain-probe/README.md) packages
+nine untextured static shapes with a Rust camera and native depth/vertex bridge.
+Host/C-link and packaging checks pass; files were transferred with readback
+verification. The user confirmed all nine shapes and camera/button controls
+on Switch Lite. This remains a static untextured scene, not a live world.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

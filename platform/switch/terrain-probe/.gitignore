@@ -1,0 +1,5 @@
+build/
+native/build/
+shaders/*.dksh
+*.o
+*.a

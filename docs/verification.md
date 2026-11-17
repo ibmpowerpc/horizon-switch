@@ -914,3 +914,92 @@ Rust ModelLibrary и bake_block_model — кандидаты для следую
 overlap recovery, duplicate-key ordering, coercions и z rotation не реализованы.
 Model inheritance, texture resolution/atlas, baked quads, light и terrain renderer
 этим планом не создаются. Game/prepared files остаются только в ignored `.local`.
+
+## Horizon Rust baker и Model Mesh Probe 0.8.0
+
+2026-11-17 host helper `tools/switch_model_prep/src/geometry.rs` переиспользует
+существующие CuboidModel, ModelLibrary и **bake_block_model** Horizon. Новая
+геометрическая математика не писалась. Декодируются только selected models и
+parents; отсутствующие/cyclic/слишком глубокие chains, loaders, unresolved face
+materials, null elements/faces и non-finite quads дают явный отказ без cube
+fallback/partial output. Родитель дополнительно исправил обход depth limit
+через уже cached parent и добавил независимый regression case.
+
+Offline/locked dependency resolution с path dependencies horizon-assets и
+horizon-core прошло без downloads; использованы cached serde/log/libm. Full
+Horizon client/workspace не собирался. Полная host проверка после parent fix:
+6906 assets, 2,986,504 bytes; 35,723 states / 77,425 options → 7856 unique requests,
+7856 baked results, 79,851 quads, 1247 material sprites. Empty results 35,
+tinted quads 573, force-translucent 580, cull metadata 38,944. Render types default.
+Это проверка Rust baking resources, не vanilla JVM rendering oracle. Отдельные
+block-entity/fluid renderers и корректное отображение пустых special models этим
+не доказываются. Bounds host Vec не являются измерением памяти Switch.
+
+Scene exporter выбирает по именам и полной property tuple девять состояний:
+stone, oak stairs, cobblestone wall, oak fence, oak slab, grass block, dandelion,
+glass и torch. Для статического diagnostic layout берётся явно первый weighted
+option каждой части; RNG/parity не заявляется. Получены 12 unique bake requests,
+86 quads → 172 triangles → 516 vertices. Binary CTMESH01: 8304 bytes, SHA256
+`594e84b5dded66d7e0b0216ebc115b0298823f24b6a6ee587126f271eacfad87`.
+Каждая вершина происходит из upstream baked quad + grid translation; новых
+solid cubes не синтезировалось. Геометрия private, в Git не включена.
+
+Новая standalone no_std Rust library на Switch делает two-pass transactional
+mesh decode, проверяет format/protocol/count/finite coordinates/bounds и строит
+right-handed column-major camera MVP с zero-to-one depth. Без allocation,
+filesystem или SDK calls. C выполняет file/pad I/O, lifecycle и deko3d SDK calls.
+SDK-мост использует RGBA8 color/Z24X8 depth targets, stride16 position/RGBA8
+vertices, MVP, queue-idle reuse и command-buffer reset на каждый кадр.
+
+Родитель исправил compile-only SDK реализацию до сборки: 4096-byte memory-block
+alignment для uniform/vertex allocations; explicit depth test/write/Less state;
+queue wait перед upload; null/non-finite frame argument validation; аппаратную
+нормализацию RGBA8 вместо shader bit unpacking; swapchain teardown перед image
+backing memory. Shaders встроены в RomFS, Minecraft geometry — отдельный SD файл.
+Это serialized diagnostic backend, не результат измерения FPS/throughput.
+
+Проверки: 43 host model-tool tests (33 library, 3 CLI, 7 scene), 6 Rust runtime
+tests; clippy all-targets `-D warnings`, fmt и shell syntax clean. 12 существующих
+scoped Python tests проходят. Исправлена коллизия временных имён параллельных
+test fixtures (clock alone недостаточно; добавлен atomic suffix). C host runner
+под ASan/UBSan связан с настоящей Rust staticlib: все 516 vertex records совпали
+побайтово, вся сцена внутри начального frustum, controls и отказ corrupt mesh
+без partial writes прошли. Rust/зависимости не sanitizer-instrumented.
+
+`bash scripts/build-switch.sh docker terrain` собирает
+`craftrustnx-terrain-probe.nro`, 295029 bytes, SHA256
+`1809aa952787c4824ec17084d23fac9f2b704a6d279adc739441948c2dba05c4`.
+Проверены NRO0/ASET/NACP title **CraftRustNX Rust Model Mesh Probe**, version
+0.8.0, ELF64 LE AArch64 DYN, отсутствие DT_TEXTREL и 412 writable runtime
+relocations. Старый GPU target 0.6.0 пересобран из изменённого общего Makefile:
+SHA256 остался `b72a999422e01e0b77c3d1d12bfd831e82a450097de88bcc43f629027598b4f5`.
+Game/launcher/Java/server не запускались, real player data не изменялись.
+
+## MTP-передача Model Mesh Probe 0.8.0
+
+2026-11-17 DBI device 057e:201d: записано только в storage 0x10001,
+description **1: SD Card**, каталог `switch/craftrustnx`. Три новых файла:
+
+- `craftrustnx-terrain-probe.nro`: object 16777274, 295029 bytes, SHA256 выше.
+- `terrain-probe-mesh.bin`: object 16777275, 8304 bytes, SHA256 выше.
+- `craftrustnx-terrain-notices.txt`: object 16777276, 16338 bytes, SHA256
+  `31991ba68793f056a539639b33793f465c95f7762e03e450119196695f9fb620`.
+
+Обратное чтение всех трёх файлов подтвердило byte/SHA256 equality. Existing
+files не перезаписывались; временные transfer helper/readbacks удалены, ignored
+report сохранён в `terrain-probe/build/mtp-verification.json`. NRO/ELF и прежние
+проверенные пробы сохранены. Пользователю предложен аппаратный тест девяти фигур,
+depth/perspective и A/B/X/right-stick/ZL/ZR/Plus. Аппаратный результат **ожидается**;
+host/C-link/packaging/MTP checks не выдаются за device render pass.
+
+## Аппаратный PASS Model Mesh Probe 0.8.0
+
+2026-11-17 пользователь ответил на проверку девяти фигур и A/orbit, B/background,
+X/reset, right stick, ZL/ZR/zoom, Plus: **«Фигуры видны, управление работает»**.
+Это подтверждает display/control path новой пробы на Switch Lite с переданным
+NRO SHA256 `1809aa952787c4824ec17084d23fac9f2b704a6d279adc739441948c2dba05c4`
+и mesh SHA256 `594e84b5dded66d7e0b0216ebc115b0298823f24b6a6ee587126f271eacfad87`.
+Аппаратная проверка больше не ожидается. FPS, GPU timings, точные memory counters
+и отдельная occlusion/precision проверка не сообщались и не заявляются.
+Текстуры/alpha, biome/terrain light, live world и gameplay остаются следующими
+этапами. Новых билдов или повторной передачи после этого ответа не требовалось.
