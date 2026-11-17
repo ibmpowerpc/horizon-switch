@@ -188,5 +188,6 @@ block/biome ID через Rust в статических буферах и св�
 Ожидается `COLUMN_SNAPSHOT_OBSERVED`, `Error: NONE`, snapshot status0 и
 `Snapshot sample agrees: yes`. Это снимок принятого пакета, без применения
 последующих block/light updates, рендера мира или PlayerLoaded. Host fixtures
-проходят; новый live-server/hardware результат пока ожидается. Подробности —
+и live-проверка Java 26.3 с компьютера прошли: 24 секции, 98,304 состояния блоков
+и 1,536 biome cells; образец совпал. Аппаратный 0.7.0 результат пока ожидается. Подробности —
 [COLUMN-SNAPSHOT.md](login-probe/COLUMN-SNAPSHOT.md).

@@ -726,3 +726,25 @@ segments. Снимок максимум 256 секций требует 4.0625 M
 NRO/ELF предыдущих проб и отчёты сохранены. Итог около 485.6 MiB/512,
 свободно около 15.5 GiB; toolchain/dependencies/images не загружались.
 Передача 0.7.0 по MTP и аппаратная проверка ещё ожидаются.
+
+## Live Java 26.3: Column Snapshot Probe 0.7.0
+
+2026-11-17 после получения актуального endpoint от пользователя host runner
+завершился `COLUMN_SNAPSHOT_OBSERVED` (19) за 16.06 s. Error, codec, world и
+column status — 0; encryption yes, configuration ACK yes, registry packets 32.
+Получены 49 chunks, отправлены 41 batch ACK, 1 pose ACK и 1 keepalive reply.
+Сохранён нормализованный snapshot из 24 sections: 98,304 block states и 1,536
+biome cells. Образец из полного массива совпал с world sample под
+подтверждённой позицией. Word digests: blocks 926093479, biomes 1964077050.
+Это fingerprints полученного содержимого, не независимая vanilla parity oracle.
+
+Запуск выполнен с C ASan/UBSan на хосте, stderr пуст; runtime diagnostics
+не обнаружены. Rust/OpenSSL этой C сборкой не инструментированы.
+JSON с результатом сохранён в ignored `tests/build/live-column-snapshot.json`;
+raw column, адрес/порт, положение игрока и session UUID не публикуются.
+Полные массивы остаются только в памяти runner и освобождаются с процессом.
+
+Это положительный live-host результат 0.7.0 вместо прежнего timeout.
+Аппаратная 0.7.0 проверка на Switch ещё ожидается; MTP не обнаружен.
+Проверка не включает live block/light updates, terrain rendering или PlayerLoaded.
+Время — длительность диагностического обмена с ожиданием keepalive, не benchmark.
