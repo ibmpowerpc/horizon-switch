@@ -501,7 +501,11 @@ int32_t tx_graphics_present(const float mvp[16], const float clear[4]) {
   DkShader const *shaders[] = {&g_ctx.vertexShader, &g_ctx.fragmentShader};
   DkRasterizerState raster;
   dkRasterizerStateDefaults(&raster);
-  raster.cullMode = DkFace_None;
+  /* The baker emits outward CCW faces. Flat plants contain separate,
+   * coincident front/back quads; drawing both sides of both quads makes their
+   * mirrored UVs compete at the same depth. Keep the camera-facing side. */
+  raster.cullMode = DkFace_Back;
+  raster.frontFace = DkFrontFace_CCW;
   DkColorWriteState write;
   dkColorWriteStateDefaults(&write);
   DkDepthStencilState ds;

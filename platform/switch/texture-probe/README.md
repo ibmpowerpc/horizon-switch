@@ -1,8 +1,15 @@
-# Rust Texture Probe 0.9
+# Rust Texture Probe 0.9.1
 
 Separate static preview after the hardware-verified Model Mesh Probe 0.8. It
 renders the same nine baked models with ten real sprites in a 128-by-128 atlas.
 It has no server connection, live terrain or gameplay.
+
+Version 0.9.1 enables back-face culling with the baker's outward CCW winding.
+Flat plant models contain separate coincident front/back faces; rendering both
+sides of both faces in 0.9.0 caused the flower's mirrored UVs to fight at the same
+depth. Geometry and textures are unchanged. The user reported other textures
+displayed normally in 0.9.0; the 0.9.1 fix still needs a device test while orbiting
+the flower from both sides.
 
 Prepare the private scene as described in
 [ATLAS.md](../../../tools/switch_model_prep/ATLAS.md), then build:

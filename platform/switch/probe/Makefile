@@ -137,7 +137,7 @@ ifneq ($(strip $(TEXTURE_ARCHIVE)),)
 TARGET := craftrustnx-texture-probe
 BUILD := build-texture
 APP_TITLE := CraftRustNX Rust Texture Probe
-APP_VERSION := 0.9.0
+APP_VERSION := 0.9.1
 SOURCES := ../texture-probe/source ../texture-probe/native
 INCLUDES += ../texture-probe/include ../terrain-probe/include
 ROMFS := build-texture-romfs

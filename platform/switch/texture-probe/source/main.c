@@ -9,7 +9,7 @@
 _Static_assert(sizeof(struct tx_vertex) == 24, "texture vertex ABI");
 _Static_assert(sizeof(struct tx_draw) == 16, "draw ABI");
 _Static_assert(sizeof(struct tx_scene_info) == 48, "scene ABI");
-static const char *TITLE = "CraftRustNX: Rust Texture Probe 0.9.0";
+static const char *TITLE = "CraftRustNX: Rust Texture Probe 0.9.1";
 static const char *SCOPE = "Static models and textures. Neutral tint; no "
                            "biome/light/animation or gameplay.";
 static const char *CONTROLS =

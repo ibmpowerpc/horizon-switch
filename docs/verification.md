@@ -1111,3 +1111,34 @@ Existing destination files не перезаписывались, прежняя
 `texture-probe/build/mtp-verification.json`. Temporary transfer helper и
 readbacks очищены после проверки. Аппаратный результат новой 0.9 ожидается:
 девять текстурных фигур, cutout flower, glass/depth, края atlas и управление.
+
+## Аппаратный отзыв 0.9.0 и исправление цветка 0.9.1
+
+2026-11-17 пользователь сообщил: **«все текстуры отображаются нормально кроме
+цветка: на текстуре цветка виден z-fightring»**. Это положительный результат
+текстурной пробы с отдельным визуальным дефектом цветка; полного PASS без
+оговорок и измерения FPS/colour accuracy не заявляется.
+
+Проверена причина: исходный cross model содержит две плоскости, каждая с
+отдельными совпадающими front/back quads и противоположным winding. В SDK-мосте
+0.9.0 стоял `DkFace_None`: обе стороны обеих quads рисовались в одной плоскости
+с разным UV-направлением. В 0.9.1 включены `DkFace_Back` и явный
+`DkFrontFace_CCW`, соответствующий outward winding baker. Геометрия, texture
+atlas, shader cutout, depth compare и формат данных не менялись; offset/depth
+bias для маскировки дефекта не добавлялся.
+
+Независимая проверка настоящего scene binary подтвердила outward CCW normals
+всех шести stone faces и две пары совпадающих противоположных flower quads;
+для 48 view directions в каждой паре остаётся ровно одна front-facing сторона.
+Это геометрическая проверка, не GPU rendering oracle. Strict SDK C compile,
+сборка NRO и packaging verification прошли; неизменённые Rust/codec tests
+повторно не запускались.
+
+NRO 0.9.1: 315765 bytes, SHA256
+`e9383561e6f33958948af5d73865b92b0f3be6033a587a709eddae8ce84c13ce`.
+Title **CraftRustNX Rust Texture Probe**, version0.9.1, NRO0/ASET/NACP,
+ELF64 LE AArch64 DYN, DT_TEXTREL отсутствует, 416 writable relocations.
+Для отдельной передачи подготовлен `craftrustnx-texture-probe-0.9.1.nro`;
+прежний переданный NRO 0.9.0 сохранён локально как versioned backup, SD-файл
+не менялся. Scene/notices bytes и SHA256 прежние. Аппаратный повторный тест
+цветка с разных сторон пока ожидается.

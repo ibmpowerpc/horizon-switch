@@ -47,6 +47,9 @@ and enable straight-alpha blending (SrcAlpha/InvSrcAlpha for colour,
 One/InvSrcAlpha for alpha). Rust provides their order. The vertex shader passes
 mode to the fragment shader as a flat integer. Camera MVP uses SDK zero-to-one
 depth and upper-left framebuffer origin without another projection conversion.
+Back faces are culled with outward CCW winding. Separate front/back quads in
+flat plant models make the plant visible from either side without drawing both
+coincident surfaces at once.
 
 Shutdown waits for GPU idle, destroys queue, command buffer and swapchain before
 backing memory, then releases the device. It is safe after partial initialization.
