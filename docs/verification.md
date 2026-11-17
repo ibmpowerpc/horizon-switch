@@ -1142,3 +1142,15 @@ ELF64 LE AArch64 DYN, DT_TEXTREL отсутствует, 416 writable relocation
 прежний переданный NRO 0.9.0 сохранён локально как versioned backup, SD-файл
 не менялся. Scene/notices bytes и SHA256 прежние. Аппаратный повторный тест
 цветка с разных сторон пока ожидается.
+
+## MTP-передача исправления 0.9.1
+
+2026-11-17 через DBI в storage0x10001 **1: SD Card**, `switch/craftrustnx`,
+записан новый `craftrustnx-texture-probe-0.9.1.nro`, object16777280,
+315765 bytes, SHA256 `e9383561e6f33958948af5d73865b92b0f3be6033a587a709eddae8ce84c13ce`.
+Обратное чтение подтвердило полное совпадение. Existing scene object16777278
+и notices object16777279 только прочитаны; их bytes/SHA256 также совпали с
+проверенными исходниками. Прежний NRO 0.9.0 не перезаписывался.
+Ignored report: `texture-probe/build/mtp-verification-0.9.1.json`.
+Temporary helper/readbacks очищены. Аппаратная проверка исправленного цветка
+с обеих сторон ожидается; факт передачи не считается visual PASS.
