@@ -1,0 +1,25 @@
+[package]
+name = "craftrustnx-model-prep"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone tool crate: never part of the game workspace.
+[workspace]
+
+[lib]
+name = "craftrustnx_model_prep"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"
+
+# Keep host-side build artifacts small; this tool is not hot code.
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

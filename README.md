@@ -50,6 +50,10 @@ inputs from the user's pinned Java 26.3 installation. The parent verified 6906
 asset files and 35,723 state records with canonical properties. These ignored
 inputs are not distributed; model baking, texture atlases and terrain rendering
 remain to be implemented.
+The [Rust model preparer](tools/switch_model_prep/README.md) now verifies asset
+hashes and maps all 35,723 states to ordered model selections, preserving weighted
+alternatives. All selections agree with an independent evaluation of the local
+blockstate definitions. This is preparation data; no geometry is baked yet.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

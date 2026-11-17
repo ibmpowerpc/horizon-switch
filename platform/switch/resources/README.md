@@ -97,3 +97,9 @@ the input for state-to-model selection, without claiming a baked mesh or atlas.
 The user removed the earlier 512 MiB artifact cap and 10 GiB reserve on
 2026-11-17. Useful caches now remain in place; builds report actual disk usage
 and check only their explicitly requested headroom.
+
+The next [Rust preparation tool](../../../tools/switch_model_prep/README.md)
+verifies all listed asset hashes and selects model references for each state.
+Its local plan preserves empty multipart selections and weighted arrays, with
+all 35,723 rows cross-checked independently. The plan is ignored preparation
+data; the Switch runtime does not yet consume it or render terrain.

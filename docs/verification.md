@@ -876,3 +876,41 @@ headroom операции; std preflight сравнивает оценку ро�
 пробы (около 213 MiB); её NRO, ELF и verification records сохранены. Shell syntax
 checks и три exporter tests проходят; сборка старых проб для изменения политики
 не требуется. Исторические записи выше отражают действовавшие тогда ограничения.
+
+## Rust model selection: полный pinned resource set
+
+2026-11-17 добавлен standalone host tool `tools/switch_model_prep`: cached
+serde_json 1.0.154 и sha2 0.10.9, offline/locked build, без JVM, downloads или
+запуска игры. CLI проверяет manifest pin и size/SHA256 всех 6906 listed assets,
+canonical state IDs/properties, выбирает ordered variant/multipart parts и
+проверяет наличие selected model JSON. Output bounded 12 MiB, атомарная
+no-replace публикация через hard link; existing output не заменяется.
+
+Родитель исправил найденный настоящими ресурсами дефект selector: multipart
+property alternatives `side|up` должны сравниваться отдельно, с поддержкой
+per-term negation; variants используют comma-separated equality clauses,
+не выдуманный OR синтаксис. Array/object distinction сохранён как `weighted`:
+singleton weighted list расходует RNG draw в upstream, plain object — нет.
+Положительные веса и prefix total ограничены signed32. RNG choice tool не делает.
+
+Полный локальный run: 35,723 states, 35,637 MODEL states, 72,572 parts,
+77,425 options, 2575 unique model references, 64 valid empty wall selections.
+Ignored `.local/switch-models/26.3/model-selection.json`: 7,281,360 bytes,
+SHA256 `a623d4ebd56b81e6dc2f8c79aa211779f49f7adc3c9e27f1b78b11f3177ae06d`.
+Независимый Python evaluator сравнил каждую часть/альтернативу каждого state,
+включая rotation, uvlock, weights и array marker: 35,723/35,723 agree.
+Это independent resource-selection check, не vanilla JVM rendering oracle.
+
+20 Rust tests проходят (17 selector, 3 CLI integration), clippy all-targets
+`-D warnings`, fmt и shell syntax check clean. Также проходят 12 существующих
+scoped Python tests (asset importer/exporter/public gate). Full Horizon build,
+server login и новая NRO не требовались; проверенное wire поведение не менялось.
+
+Kiro baking audit принят только после сверки родителем с актуальными исходниками:
+добавлена зависимость horizon-assets от horizon-core/libm, исправлены vertex
+размеры, неустановленные memory bounds и empty wall semantics. Существующие
+Rust ModelLibrary и bake_block_model — кандидаты для следующего host baking
+шага. Текущий строгий selector не заявляет полную совместимость с resource packs:
+overlap recovery, duplicate-key ordering, coercions и z rotation не реализованы.
+Model inheritance, texture resolution/atlas, baked quads, light и terrain renderer
+этим планом не создаются. Game/prepared files остаются только в ignored `.local`.
