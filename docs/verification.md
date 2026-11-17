@@ -748,3 +748,13 @@ raw column, адрес/порт, положение игрока и session UUID
 Аппаратная 0.7.0 проверка на Switch ещё ожидается; MTP не обнаружен.
 Проверка не включает live block/light updates, terrain rendering или PlayerLoaded.
 Время — длительность диагностического обмена с ожиданием keepalive, не benchmark.
+
+## Передача Column Snapshot Probe 0.7.0 через MTP
+
+2026-11-17 `craftrustnx-column-snapshot-probe.nro` передан через DBI/MTP
+в `1: SD Card` → `switch/craftrustnx/`, object ID 16777273.
+Обратное чтение подтвердило побайтовое совпадение: 465093 bytes, SHA256
+`c10178bb5623d804e577398f33e6b619fb0ae8947d9d5a46ac2503007e6c3f16`.
+Прежние NRO не заменялись. Временный transfer helper/readback удалены после
+проверки; JSON отчёт сохранён в ignored `tests/build/mtp-column-snapshot.json`.
+Аппаратный 0.7.0 результат пока ожидается; host live pass не выдаётся за него.
