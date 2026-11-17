@@ -285,10 +285,10 @@ covered while changing platform implementations.
 
 ## Disk space
 
-The user has limited free disk space (reported approximately 21 GB on 2026-11-15).
-Check actual available space with `df -h .` before and after substantial downloads
-or builds. Keep at least 10 GiB free as a working reserve; stop a large operation
-before it threatens that reserve and report what needs space.
+On 2026-11-17 the user removed the earlier disk-conservation requirement.
+Keep useful compiler caches; do not impose the old 512 MiB artifact cap or
+10 GiB free-space reserve. Check actual available space before substantial
+downloads or builds and estimate whether the operation fits the disk.
 
 Reuse the existing `devkitpro/devkita64:20260219` Docker image. Avoid additional
 toolchain images, duplicate source trees, full upstream history, and simultaneous
@@ -296,8 +296,9 @@ Rust debug/release builds. Estimate space before cloning Horizon or building its
 client. Current scope is standalone C/libnx hardware probes, offline Rust
 `no_std` and isolated `std` runtime probes, and the status-ping codec, using the
 already installed compiler and matching rust-src. Full Horizon builds remain
-outside the current stage. Keep all experiment build artifacts under 512 MiB;
-do not install toolchains or fetch dependencies automatically.
+outside the current stage. Resource preparation and bounded Rust model/terrain
+work are now part of this stage. Do not install toolchains or fetch dependencies
+automatically.
 
 Clean only artifacts created for this task when they are no longer needed.
 Never run global Docker prune or delete unrelated images, containers, volumes,

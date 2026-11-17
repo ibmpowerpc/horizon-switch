@@ -15,8 +15,6 @@ target_dir="$repo_dir/platform/switch/rust-probe/target"
 lib="$target_dir/aarch64-nintendo-switch-freestanding/release/libswitch_abi_probe_rust.a"
 image="devkitpro/devkita64:20260219"
 c_json="$audit_dir/build/abi.json"
-min_free_kib=$((10 * 1024 * 1024))   # keep 10 GiB free
-max_artifacts_kib=$((512 * 1024))    # Rust experiment cap: 512 MiB
 
 mkdir -p "$build_dir"
 
@@ -40,17 +38,7 @@ libc_src="$(find "$HOME/.cargo/registry/src" -maxdepth 2 -type d -name 'libc-0.2
 [ -n "$libc_src" ] || { echo "libc 0.2.189 source is missing from the offline Cargo cache." >&2; exit 1; }
 
 check_space() {
-  local free_kib artifacts_kib=0
-  free_kib="$(df -Pk "$repo_dir" | awk 'NR==2 {print $4}')"
-  [[ "$free_kib" -ge "$min_free_kib" ]] || { echo 'Less than 10 GiB free; stopped.' >&2; exit 1; }
-  if [[ -d "$target_dir" ]]; then
-    artifacts_kib="$(du -sk "$target_dir" | awk '{print $1}')"
-  fi
-  [[ "$artifacts_kib" -lt "$max_artifacts_kib" ]] || {
-    echo "Rust artifacts are already at ${artifacts_kib} KiB; stopped before exceeding the 512 MiB cap." >&2
-    exit 1
-  }
-  echo "free_kib=$free_kib rust_artifacts_kib=$artifacts_kib"
+  python3 "$repo_dir/platform/switch/check-budget.py" --reserve-mib 32
 }
 
 check_space

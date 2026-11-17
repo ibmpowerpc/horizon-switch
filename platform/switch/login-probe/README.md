@@ -26,8 +26,9 @@ bash scripts/build-switch.sh docker login
 ```
 
 This creates `dist/switch/craftrustnx/craftrustnx-login-probe.nro`. All builds
-are offline, reuse the no_std core cache, and check the combined 512 MiB artifact
-budget and 10 GiB free-space reserve. No toolchains/dependencies are downloaded.
+are offline, reuse the no_std core cache, and report actual disk use. The user
+removed the fixed artifact cap/free-space reserve on 2026-11-17; useful caches
+are retained. No toolchains/dependencies are downloaded.
 
 ## Hardware controls
 

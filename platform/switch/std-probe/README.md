@@ -23,7 +23,8 @@ No checks run automatically. No file or network access is tested.
 
 - Installed Homebrew Rust 1.100.0, matching rust-src and its local vendor sources.
 - `preflight.sh` checks source hashes, target cfg, offline dependency resolution
-  and the 10 GiB free-space / 512 MiB experiment limits. It stages ~19 MiB of
+  and estimated build growth against actual available disk (no fixed cap or
+  reserve, per the user's 2026-11-17 update). It stages ~19 MiB of
   local source; it never installs tools, fetches crates, compiles std or deletes caches.
 - A project target spec adds Unix/newlib cfg and selects pthread-key TLS with
   `has-thread-local=false`. This is a deliberate experiment choice, **not** proof

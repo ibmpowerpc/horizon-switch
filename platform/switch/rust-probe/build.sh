@@ -13,13 +13,7 @@ rust_sysroot="$(rustc --print sysroot)"
 }
 
 check_space() {
-  local free_kib artifacts_kib=0
-  free_kib="$(df -Pk "$probe_dir" | awk 'NR==2 {print $4}')"
-  [[ "$free_kib" -ge 10485760 ]] || { echo 'Less than 10 GiB free; stopped.' >&2; exit 1; }
-  if [[ -d "$probe_dir/target" ]]; then
-    artifacts_kib="$(du -sk "$probe_dir/target" | awk '{print $1}')"
-  fi
-  [[ "$artifacts_kib" -lt 524288 ]] || { echo 'Rust artifacts reached 512 MiB; stopped.' >&2; exit 1; }
+  python3 "$probe_dir/../check-budget.py" --reserve-mib 32
 }
 
 check_space

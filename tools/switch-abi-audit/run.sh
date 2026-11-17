@@ -7,7 +7,6 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "$script_dir/../.." && pwd)"
 build_dir="$script_dir/build"
 image="devkitpro/devkita64:20260219"
-min_free_kib=$((10 * 1024 * 1024)) # keep 10 GiB free
 
 mkdir -p "$build_dir"
 
@@ -15,12 +14,7 @@ command -v docker >/dev/null 2>&1 || { echo "Docker is required." >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Start Docker, then retry." >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required." >&2; exit 1; }
 
-avail_kib="$(df -Pk "$build_dir" | awk 'NR == 2 { print $4 }')"
-if [ -z "$avail_kib" ] || [ "$avail_kib" -lt "$min_free_kib" ]; then
-  echo "Refusing to run: less than 10 GiB free on the build filesystem." >&2
-  df -h "$build_dir" >&2
-  exit 1
-fi
+python3 "$repo_dir/platform/switch/check-budget.py" --reserve-mib 1
 
 image_id="$(docker image inspect "$image" --format '{{.Id}}')"
 repo_digest="$(docker image inspect "$image" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}')"

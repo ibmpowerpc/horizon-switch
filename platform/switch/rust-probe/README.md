@@ -19,8 +19,9 @@ The script requires installed Rust 1.100.0 and its matching rust-src. It uses
 process-local `RUSTC_BOOTSTRAP=1` to enable the experimental `build-std=core`
 option, with offline resolution, a locked dependency graph, one job, Cortex-A57
 code generation, PIC and `panic=abort`. No installation or download is attempted.
-It checks the 10 GiB free-space reserve and 512 MiB artifact limit before and
-after building; these checks are not a continuous filesystem quota.
+It reports actual disk use and checks explicitly requested build headroom.
+The user removed the old fixed artifact cap/free-space reserve on 2026-11-17;
+compiler caches are retained.
 
 Output: `target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_rust_probe.a`.
 

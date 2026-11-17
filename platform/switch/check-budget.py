@@ -6,7 +6,8 @@ import shutil
 import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--reserve-mib", type=int, default=0)
+parser.add_argument("--reserve-mib", type=int, default=0,
+                    help="Minimum free space requested for this operation; no fixed artifact cap")
 args = parser.parse_args()
 if args.reserve_mib < 0:
     parser.error("reserve must be nonnegative")
@@ -17,6 +18,7 @@ patterns = (
     "tools/switch-abi-audit/build", "tools/switch-abi-audit/rust/build",
     "dist/switch",
     ".local/switch-assets", ".local/switch-state-facts",
+    ".local/switch-models", "tools/switch_model_prep/build*", "tools/switch_model_prep/target",
     *(f"platform/switch/probe/*.{ext}" for ext in ("elf", "nro", "nacp", "map", "lst")),
 )
 paths = {p for pattern in patterns for p in root.glob(pattern)
@@ -27,6 +29,6 @@ kib = sum(int(subprocess.check_output(["du", "-sk", str(p)], text=True).split()[
           for p in paths)
 free = shutil.disk_usage(root).free
 print(f"Experiment artifacts: {kib / 1024:.1f} MiB; free: {free / 2**30:.1f} GiB")
-reserve = args.reserve_mib * 1024
-if free < 10 * 2**30 + reserve * 1024 or kib + reserve > 512 * 1024:
-    raise SystemExit("Insufficient space within 10 GiB reserve / 512 MiB experiment budget.")
+reserve = args.reserve_mib * 1024 * 1024
+if free < reserve:
+    raise SystemExit("Insufficient free space for the explicitly requested build headroom.")

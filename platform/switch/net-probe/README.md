@@ -10,8 +10,9 @@ bash scripts/build-switch.sh docker net
 ```
 
 Uses installed Rust 1.100.0/rust-src and the existing devkitA64 image offline.
-Reuses the no_std probe's core cache and checks the combined experiment budget
-(512 MiB) and 10 GiB free-space reserve. No toolchains or dependencies are fetched.
+Reuses the no_std probe's core cache and reports actual disk use. The earlier
+fixed artifact cap/free-space reserve was removed by the user on 2026-11-17.
+No toolchains or dependencies are fetched.
 
 Output: `dist/switch/craftrustnx/craftrustnx-net-probe.nro`.
 Copy alongside the other probes to `sdmc:/switch/craftrustnx/`.

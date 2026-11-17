@@ -864,3 +864,15 @@ Pre-commit теперь вызывает `--staged`: проверяются вс
 checks сохранены. Synthetic Git fixture подтверждает отказ на copied tables и
 JAR, а также работу с отсутствующим локально unchanged blob. Итого 12 scoped
 tests проходят (8 asset importer, 3 exporter, 1 staged gate).
+
+## Изменение политики места на диске
+
+2026-11-17 пользователь отменил требование экономить место. AGENTS.md и активные
+build/preflight scripts больше не навязывают лимит 512 MiB и резерв 10 GiB.
+Общий helper сообщает фактический расход и проверяет только явно запрошенный
+headroom операции; std preflight сравнивает оценку роста с доступным диском.
+Кэши сохраняются, automatic downloads/toolchain installs по-прежнему запрещены.
+До этого изменения удалён только регенерируемый Cargo target завершённой std
+пробы (около 213 MiB); её NRO, ELF и verification records сохранены. Shell syntax
+checks и три exporter tests проходят; сборка старых проб для изменения политики
+не требуется. Исторические записи выше отражают действовавшие тогда ограничения.

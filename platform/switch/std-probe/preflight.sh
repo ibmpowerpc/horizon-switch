@@ -31,8 +31,8 @@ staged_libc="$repo_dir/tools/switch-abi-audit/rust/build/patched/libc-0.2.189"
 rust_probe_target="$repo_dir/platform/switch/rust-probe/target"
 image="devkitpro/devkita64:20260219"
 
-min_free_kib=$((10 * 1024 * 1024))    # host reserve: keep 10 GiB free
-max_artifacts_kib=$((512 * 1024))     # Rust experiment artifact cap: 512 MiB
+min_free_kib=0  # User removed the fixed free-space reserve on 2026-11-17
+max_artifacts_kib=0  # Set from actual free disk after measuring existing artifacts
 expected_rustc="1.100.0"
 rustflags='-C target-cpu=cortex-a57 -C relocation-model=pic -Zunstable-options'
 cargo_unstable='-Z json-target-spec -Z unstable-options -Z build-std=std,panic_abort'
@@ -98,16 +98,16 @@ fi
 say "  rust_src=$rust_src"
 
 # ---------------------------------------------------------------------------
-# 2. Disk: host reserve and the 512 MiB artifact cap
+# 2. Disk: actual space available for the estimated build
 # ---------------------------------------------------------------------------
 say ""
 say "-- 2. disk ----------------------------------------------------------"
 free_kib="$(df -Pk "$repo_dir" | awk 'NR==2 {print $4}')"
 free_gib="$(awk -v k="$free_kib" 'BEGIN {printf "%.1f", k/1048576}')"
 if [ "$free_kib" -ge "$min_free_kib" ]; then
-  ok "host free ${free_gib} GiB (reserve is 10 GiB)"
+  ok "host free ${free_gib} GiB (no fixed reserve)"
 else
-  blocker "host free ${free_gib} GiB is below the 10 GiB reserve"
+  blocker "host free ${free_gib} GiB could not be measured"
 fi
 
 artifact_kib=0
@@ -117,8 +117,9 @@ for dir in "$rust_probe_target" "$target_dir" "$build_dir/host-target" "$script_
   artifact_kib=$((artifact_kib + dir_kib))
   say "  $(printf '%-58s' "${dir#$repo_dir/}") $(awk -v k="$dir_kib" 'BEGIN {printf "%7.1f MiB", k/1024}')"
 done
-headroom_kib=$((max_artifacts_kib - artifact_kib))
-ok "Rust artifacts $(awk -v k=$artifact_kib 'BEGIN{printf "%.1f", k/1024}') MiB of the 512 MiB cap; headroom $(awk -v k=$headroom_kib 'BEGIN{printf "%.1f", k/1024}') MiB"
+max_artifacts_kib=$((artifact_kib + free_kib))
+headroom_kib=$free_kib
+ok "Rust artifacts $(awk -v k=$artifact_kib 'BEGIN{printf "%.1f", k/1024}') MiB; available disk headroom $(awk -v k=$headroom_kib 'BEGIN{printf "%.1f", k/1024}') MiB"
 
 # Measured unit: one `build/core/<hash>/out` pair (rlib + rmeta) is ~128 MiB on
 # this host. std is a strictly larger crate than core; using 2.0x-2.5x of that
@@ -200,14 +201,14 @@ if high > cap_kib - artifact_kib:
                    f"{(cap_kib-artifact_kib)/1024:.0f} MiB headroom; it fits only {fits[0]} "
                    f"(a maintainer decision, nothing deleted here)")
     else:
-        message = (f"a std build is estimated to add {high/1024:.0f} MiB and does not fit the 512 MiB cap "
-                   f"even after removing every core build output; raise the cap or split the build")
+        message = (f"a std build is estimated to add {high/1024:.0f} MiB and does not fit available disk capacity "
+                   f"even after removing every core build output; free disk space or split the build")
 open(verdict_path, 'w').write(("blocker::" + message) if message else "ok")
 PY
 verdict="$(cat "$budget_verdict" 2>/dev/null)"
 case "$verdict" in
   blocker::*) blocker "${verdict#blocker::}" ;;
-  ok) ok "estimated std delta fits the cap headroom" ;;
+  ok) ok "estimated std delta fits available disk headroom" ;;
   *) blocker "could not compute the artifact budget" ;;
 esac
 

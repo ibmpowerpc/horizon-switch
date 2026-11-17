@@ -136,8 +136,8 @@ def main(argv=None):
             return 0
         if output.exists() or a.output_dir.is_symlink():
             raise ValueError('output directory already exists; refusing overwrite')
-        if shutil.disk_usage(output.parent if output.parent.exists() else Path.cwd()).free < 10*2**30 + MAX_BYTES:
-            raise ValueError('10 GiB reserve would be threatened')
+        if shutil.disk_usage(output.parent if output.parent.exists() else Path.cwd()).free < MAX_BYTES:
+            raise ValueError('not enough free space for the bounded export')
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='state-facts-') as scratch_name:
             scratch = Path(scratch_name)

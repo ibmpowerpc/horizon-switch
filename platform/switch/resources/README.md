@@ -94,6 +94,6 @@ now prepares numeric state IDs, canonical property maps and selected rendering
 flags from the same pinned installation. The corrected local export passed
 validation with 35,723 states; generated facts also remain ignored. This supplies
 the input for state-to-model selection, without claiming a baked mesh or atlas.
-The current artifacts and local inputs total about 498.7 MiB of the 512 MiB
-experiment cap; a new build must first recover space from regenerable task
-outputs while retaining delivered NRO/ELF files and verification records.
+The user removed the earlier 512 MiB artifact cap and 10 GiB reserve on
+2026-11-17. Useful caches now remain in place; builds report actual disk usage
+and check only their explicitly requested headroom.
