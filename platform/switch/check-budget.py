@@ -16,6 +16,7 @@ patterns = (
     "platform/switch/*/*/target", "platform/switch/*/*/build*",
     "tools/switch-abi-audit/build", "tools/switch-abi-audit/rust/build",
     "dist/switch",
+    ".local/switch-assets", ".local/switch-state-facts",
     *(f"platform/switch/probe/*.{ext}" for ext in ("elf", "nro", "nacp", "map", "lst")),
 )
 paths = {p for pattern in patterns for p in root.glob(pattern)

@@ -787,3 +787,34 @@ semantics, сохранённое освещение и PlayerLoaded не реа
 установки pinned Java 26.3. В стандартных локальных папках Minecraft/Prism и
 `.local/horizon-client/26.3` ресурсы не найдены; у пользователя запрошено
 расположение установки. Никаких game files или prepared resources не добавлено.
+
+## Подготовка моделей/текстур из установленного Minecraft 26.3
+
+2026-11-17 найден клиент OffPrism 26.3; root version.json подтверждает id 26.3,
+protocol 777, SHA1 JAR `e877b6a07acd633fb3bb475002175cec036e7b87` совпадает
+с Horizon research-lock. Установка используется только для чтения.
+
+Добавлен stdlib Python devtool `tools/stage_switch_assets.py`: строгая проверка
+пина, ZIP names/duplicates/symlinks/CRC, limits, atomic staging и manifest SHA256.
+Родитель исправил чтение nested minecraft секции настоящего research-lock;
+новый вариант проверяется synthetic test вместе с отказом при неверном hash.
+Восемь tests, py_compile и diff check проходят. CLI dry-run выполнен до записи.
+
+В ignored `.local/switch-assets/26.3` извлечены 6906 файлов: 2,986,504 data bytes,
+manifest 1,287,232 bytes. Независимое сравнение каждого файла с установленным JAR
+и recorded SHA256 прошло. Обход block models: 2883 models, 5326 concrete bindings,
+18 extra referenced PNGs. Учтены object texture bindings `{sprite, force_translucent}`.
+`block/air.json` ссылается на `minecraft:missingno`, которого нет как PNG;
+эта missing reference явно сохранена в манифесте, ничего не синтезировано.
+Полного atlas/model baking и state-ID mapping этим импортом не выполняется.
+
+До извлечения общий budget был 495.5 MiB; множество мелких файлов требует больше
+дисковых блоков, чем сумма их byte lengths. Удалены только регенерируемые
+`std-probe/build/vendor` и `std-probe/build/host-target` старой завершённой пробы.
+Её NRO/ELF и verification records сохранены; vendor restaging предусмотрен
+preflight.sh из уже установленных исходников, без сети. После подготовки
+budget около 499.1 MiB/512, free 16.7 GiB. Проверяющий budget script теперь учитывает
+оба новых каталога switch-assets/switch-state-facts. Game files/manifest/per-file
+hashes не включены в публичный коммит; git check-ignore для output прошёл.
+Экспорт semantic state facts выполняется отдельной задачей и ещё не принят
+родителем. Новая версия NRO на этом этапе не создавалась.
