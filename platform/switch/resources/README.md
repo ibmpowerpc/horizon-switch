@@ -86,3 +86,14 @@ regenerable vendor copies and host build outputs of the completed std probe
 were removed; all delivered NRO/ELF files and verification records remain.
 `std-probe/preflight.sh` can restage its vendor source from installed rust-src
 and the local Cargo cache without downloads when that experiment is needed.
+
+## Semantic state input
+
+The separate [state-facts exporter](../../../tools/switch_state_facts/README.md)
+now prepares numeric state IDs, canonical property maps and selected rendering
+flags from the same pinned installation. The corrected local export passed
+validation with 35,723 states; generated facts also remain ignored. This supplies
+the input for state-to-model selection, without claiming a baked mesh or atlas.
+The current artifacts and local inputs total about 498.7 MiB of the 512 MiB
+experiment cap; a new build must first recover space from regenerable task
+outputs while retaining delivered NRO/ELF files and verification records.

@@ -44,6 +44,12 @@ passed: 24 sections, 98,304 block states and 1,536 biome cells, with a matching
 pose sample. A Switch Lite photo also confirms COLUMN_SNAPSHOT_OBSERVED,
 24 retained sections and a matching sample without error. This is not yet a
 live terrain cache or terrain renderer.
+Offline [asset staging](platform/switch/resources/README.md) and the
+[semantic-state exporter](tools/switch_state_facts/README.md) now prepare local
+inputs from the user's pinned Java 26.3 installation. The parent verified 6906
+asset files and 35,723 state records with canonical properties. These ignored
+inputs are not distributed; model baking, texture atlases and terrain rendering
+remain to be implemented.
 
 - [Build and run the Switch probes](platform/switch/README.md)
 - [Switch port roadmap](docs/switch-port.md)

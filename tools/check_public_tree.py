@@ -9,7 +9,11 @@ import sys
 
 PRIVATE_ROOTS = {".local", "decompiled", "minecraft", "assets", "run", "logs"}
 PRIVATE_EXTENSIONS = {".jar", ".class", ".jfr", ".hprof", ".java"}
-ORIGINAL_JDK_TOOLS = {"tools/JfrSummary.java", "tests/java/JfrFixture.java"}
+ORIGINAL_JAVA_TOOLS = {
+    "tools/JfrSummary.java",
+    "tests/java/JfrFixture.java",
+    "tools/switch_state_facts/src/main/java/dev/horizonlab/switchstatefacts/BlockStateFactsExporter.java",
+}
 # The prepared folder's files in one file (crates/horizon-core/src/prepared_files.rs): Mojang's data.
 PRIVATE_NAMES = {"horizon-data.bin"}
 # Vanilla's 1.13 data fixer tables, copied from its code until 2026-11; horizon-prepare now exports them from the
@@ -24,8 +28,8 @@ TABLE_ENTRIES = 50
 
 def prohibited(path):
     parsed = PurePosixPath(path)
-    # Original JDK-only tools are an exact allowlist; recovered game Java stays private.
-    if path in ORIGINAL_JDK_TOOLS:
+    # Original developer tools are an exact allowlist; recovered game Java stays private.
+    if path in ORIGINAL_JAVA_TOOLS:
         return False
     # Original Horizon mod sources may also be tracked.
     if parsed.suffix == ".java" and path.startswith(("mods/horizon/src/", "mods/horizon-lab/src/")):
@@ -37,12 +41,23 @@ def prohibited(path):
     )
 
 
-def copied_tables():
+def copied_tables(staged=False):
     """Tracked files (in the index) that hold vanilla's retired data fixer tables."""
     found = {path for path in paths_in_repository() if path in RETIRED_TABLES}
+    pathspec = []
+    if staged:
+        # Pre-commit only introduces staged content. Avoid hydrating every
+        # unchanged blob in a partial clone; CI can still scan the full index.
+        paths = subprocess.check_output([
+            "git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR",
+        ]).decode("utf-8").split("\0")
+        pathspec = [path for path in paths if path]
+        if not pathspec:
+            return found
     for pattern in TABLE_FINGERPRINTS:
         # Every match, not matching lines: a minified JSON file is one line.
-        result = subprocess.run(["git", "grep", "--cached", "-I", "-z", "-o", "-E", "-e", pattern],
+        result = subprocess.run(["git", "grep", "--cached", "-I", "-z", "-o", "-E", "-e", pattern,
+                                 *(["--", *pathspec] if staged else [])],
                                 capture_output=True, text=True)
         if result.returncode not in (0, 1):
             raise RuntimeError(f"git grep failed: {result.stderr.strip()}")
@@ -85,12 +100,14 @@ def main():
     mode.add_argument("--pre-push", action="store_true", help="Inspect history reachable from Git's ref updates on stdin")
     # CI's pull requests: only the commits a merge would add, not every ref's whole history.
     mode.add_argument("--range", metavar="BASE..HEAD", help="Inspect the commits of a revision range")
+    mode.add_argument("--staged", action="store_true",
+                      help="Check all index paths and scan staged content for copied tables")
     args = parser.parse_args()
     revisions = pushed_revisions(sys.stdin) if args.pre_push else [args.range] if args.range else None
     history = args.history or args.pre_push or bool(args.range)
     # Millions of entries in a long history repeat a few thousand paths: judge each path once.
     rejected = sorted(path for path in set(paths_in_repository(history, revisions)) if path and prohibited(path))
-    tables = [] if history else sorted(copied_tables())
+    tables = [] if history else sorted(copied_tables(staged=args.staged))
     if tables:
         print("Vanilla's data fixer tables come from the player's jar (horizon-prepare), not from Git:",
               file=sys.stderr)

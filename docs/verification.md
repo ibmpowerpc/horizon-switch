@@ -818,3 +818,49 @@ budget около 499.1 MiB/512, free 16.7 GiB. Проверяющий budget sc
 hashes не включены в публичный коммит; git check-ignore для output прошёл.
 Экспорт semantic state facts выполняется отдельной задачей и ещё не принят
 родителем. Новая версия NRO на этом этапе не создавалась.
+
+## Проверенный semantic state export для Switch
+
+2026-11-17 принят devtool `tools/switch_state_facts`: Java registry exporter и
+offline Python runner. Родитель заменил исходные opaque property strings на
+canonical name/value map через Property.Value.valueName(), проверил contiguous
+IDs, уникальность block+property tuples, metadata pin, типы полей и три vanilla
+air names. Numeric air IDs не предполагаются. Minecraft JAR совпадает с ранее
+проверенным pin 26.3/protocol 777; установка остаётся read-only.
+
+Classpath выбирается из launcher metadata с проверкой SHA1 каждого cached JAR:
+43 JARs, без downloads. Исходник компилируется `javac --release 25`, проверяется
+class-file major 69; фактический runtime установленного JDK — 27.0.1.0.3.
+Это не запуск HotSpot 25 и не доказательство его numeric parity. Компиляция и
+registry bootstrap используют scratch cwd/user.home и отдельные Horizon/XDG
+homes; injection variables Java удаляются. Game client, server или world не
+запускаются. Heap 512 MiB, compile/run timeout 60 s. Bounded writer и проверка
+общего output ограничивают экспорт 12 MiB; ошибка не публикует partial output.
+
+Исправленный ignored `.local/switch-state-facts/26.3/state_facts.json` содержит
+35,723 states (IDs 0..35722), 3 air и 13,389 nonempty-fluid states.
+Размер 9,946,032 bytes, SHA256
+`131d7939c39658ac227c711740dc0313e438ba260e93984bee592e07297cfbbd`.
+Только устаревший output этой задачи с raw properties заменён после проверки.
+Никакие facts, asset manifests, logs или game files в публичный коммит не входят.
+
+Model-link probe проверил наличие blockstate JSON и selected model references
+для MODEL states в staged assets. 64 wall states (up=false, все arms=none)
+закономерно выбирают ноль multipart parts; их нельзя заменять solid cubes.
+Fluids требуют отдельной геометрии. Проверка ссылок не выполняет baking,
+texture/UV/lighting parity, mesh generation или rendering.
+
+Три synthetic runner tests проходят: semantic validation/refusal, source pin
+и точный выбор cached dependency, failure cleanup и isolated subprocess setup.
+`py_compile` и diff check проходят. После интеграции около 498.7 MiB/512 MiB
+artifacts и local inputs, свободно 16.7 GiB. NRO/ELF прежних проб сохранены;
+новая NRO на этом этапе не создавалась. Перед следующей сборкой требуется
+освободить regenerable task outputs до необходимого build headroom.
+Public-tree checker допускает только точный путь нашего original Java devtool;
+общий запрет recovered Java, JAR/classes и prepared resources сохраняется.
+Pre-commit теперь вызывает `--staged`: проверяются все пути index и fingerprints
+нового/изменённого staged content. Это устраняет lazy fetch неизменённых blobs
+при полном content scan partial clone. Default full-index scan и history/range
+checks сохранены. Synthetic Git fixture подтверждает отказ на copied tables и
+JAR, а также работу с отсутствующим локально unchanged blob. Итого 12 scoped
+tests проходят (8 asset importer, 3 exporter, 1 staged gate).
