@@ -294,11 +294,12 @@ texture-atlas work, including its real-resource integration, if the other lane
 cannot finish. Codex owns interfaces, integration and final verification. Give
 children disjoint file ownership and do not permit recursive delegation.
 
-For future tasks assigned to Kilo (`acpRegistry_kilo`), the user selected
-**Particle AI: Particle-1 (free)** instead of Auto Free. Resolve that exact
-model's catalog identifier before launching a Kilo task; do not guess an ID or
-silently substitute Auto Free. The last capability listing exposed Kilo but no
-model IDs, so this preference does not establish a verified launch identifier.
+For future tasks assigned to Kilo (`acpRegistry_kilo`), use the user-selected
+**Particle AI: Particle-1 (free)**, exact ID `kilo/particle-ai/particle-1:free`.
+Confirm the current instance and that exact model in T3 discovery before launch;
+do not silently substitute Auto Free or a paid model. The current capability
+listing exposes Kilo but no model entries, so Kilo needs model discovery before
+it can be selected through T3. Never bypass this through its CLI.
 
 ## Disk space
 
