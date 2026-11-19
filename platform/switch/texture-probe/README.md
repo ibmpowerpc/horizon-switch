@@ -8,8 +8,9 @@ Version 0.9.1 enables back-face culling with the baker's outward CCW winding.
 Flat plant models contain separate coincident front/back faces; rendering both
 sides of both faces in 0.9.0 caused the flower's mirrored UVs to fight at the same
 depth. Geometry and textures are unchanged. The user reported other textures
-displayed normally in 0.9.0; the 0.9.1 fix still needs a device test while orbiting
-the flower from both sides.
+displayed normally in 0.9.0. On 2026-11-19 the user confirmed that all models now
+look correct in 0.9.1, resolving the reported flower defect. This is a user
+visual result, not a frame-timing or colour-calibration measurement.
 
 Prepare the private scene as described in
 [ATLAS.md](../../../tools/switch_model_prep/ATLAS.md), then build:
@@ -43,8 +44,8 @@ panic runtimes. The native bridge handles libnx/deko3d resource lifetime and
 submission only. The original 0.8 build leaves that feature disabled.
 
 Host checks cover binary layout, invalid-input rollback and sorting. SDK compile
-and shader checks establish buildability only. No texture, alpha or colour result
-is marked hardware-passed until the user runs this NRO.
+and shader checks establish buildability only. The user's 0.9.1 device result
+confirms the static scene looks correct; live terrain and gameplay remain absent.
 
 Run the independent C ABI fixtures against the host Rust static library:
 
