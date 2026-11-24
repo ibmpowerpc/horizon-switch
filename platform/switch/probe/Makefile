@@ -148,6 +148,14 @@ APP_VERSION := 0.9.1
 SOURCES := ../texture-probe/source ../texture-probe/native
 INCLUDES += ../texture-probe/include ../terrain-probe/include
 ROMFS := build-texture-romfs
+ifneq ($(strip $(SECTION_PREVIEW)),)
+TARGET := craftrustnx-section-probe
+BUILD := build-section
+APP_TITLE := CraftRustNX Captured Section Probe
+APP_VERSION := 0.11.0
+ROMFS := build-section-romfs
+DEFINES += -DCRAFTRUSTNX_SECTION_PREVIEW
+endif
 GRAPHICS_SHADER_DIR := ../texture-probe/shaders
 GRAPHICS_SHADER_STEM := texture
 DEFINES += -Wframe-larger-than=32768

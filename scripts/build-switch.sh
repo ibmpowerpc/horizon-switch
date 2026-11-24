@@ -23,12 +23,17 @@ case "$variant" in
     native_args=("TERRAIN_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("TERRAIN_ARCHIVE=/workspace/$archive_rel")
     ;;
-  texture)
+  texture|section)
     bash "$project_dir/platform/switch/texture-probe/build.sh"
     target=craftrustnx-texture-probe
     archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_terrain_probe.a
     native_args=("TEXTURE_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("TEXTURE_ARCHIVE=/workspace/$archive_rel")
+    if [[ "$variant" == section ]]; then
+      target=craftrustnx-section-probe
+      native_args+=(SECTION_PREVIEW=1)
+      docker_args+=(SECTION_PREVIEW=1)
+    fi
     ;;
   rust)
     bash "$project_dir/platform/switch/rust-probe/build.sh"
@@ -88,7 +93,7 @@ case "$variant" in
       fi
     fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot, column-export, gpu, terrain or texture.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot, column-export, gpu, terrain, texture or section.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -106,7 +111,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|column-export|gpu|terrain|texture]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|column-export|gpu|terrain|texture|section]' >&2
     exit 2
     ;;
 esac
@@ -131,6 +136,14 @@ if [[ "$variant" == texture ]]; then
   scene="$project_dir/.local/switch-models/26.3/texture-probe-scene.bin"
   if [[ -f "$scene" ]]; then
     cp "$scene" "$project_dir/dist/switch/craftrustnx/texture-probe-scene.bin"
+  fi
+fi
+if [[ "$variant" == section ]]; then
+  cp "$project_dir/platform/switch/terrain-probe/SDK-NOTICES.txt" \
+    "$project_dir/dist/switch/craftrustnx/craftrustnx-section-notices.txt"
+  scene="$project_dir/.local/switch-models/26.3/captured-section-scene.bin"
+  if [[ -f "$scene" ]]; then
+    cp "$scene" "$project_dir/dist/switch/craftrustnx/captured-section-scene.bin"
   fi
 fi
 echo "NRO: $project_dir/dist/switch/craftrustnx/$target.nro"

@@ -63,3 +63,5 @@
 /platform/switch/probe/build-texture/
 /platform/switch/probe/build-texture-romfs/
 /platform/switch/probe/build-column-export/
+/platform/switch/probe/build-section/
+/platform/switch/probe/build-section-romfs/

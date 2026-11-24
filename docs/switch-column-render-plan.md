@@ -5,6 +5,13 @@ structural world-data and normalized column probes. Texture Probe 0.9.1 passed
 the user's static visual test, including the corrected flower. These are
 separate applications. A connected terrain renderer is not implemented yet.
 
+2026-11-24 progress: Column Export 0.10.0 saved and read back on Switch Lite,
+then the returned 24-section file passed independent host format/ID validation.
+Its explicitly selected section 8 (Y64..79) has been baked into a private static
+scene for Captured Section Probe 0.11.0. Host/ABI/cross-build checks pass;
+hardware visual acceptance is pending. The stages below remain the integration
+plan; on-device meshing and live world rendering are still future work.
+
 ## First bounded deliverable: retain the actual server column
 
 The column probe already keeps a validated column in caller-owned arrays after

@@ -14,6 +14,7 @@
 pub mod atlas;
 pub mod geometry;
 pub mod scene_inputs;
+pub mod section;
 pub mod selector;
 
 pub use atlas::{

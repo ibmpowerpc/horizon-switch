@@ -1239,3 +1239,91 @@ Column Export Probe 0.10.0. Для переданного NRO SHA256
 конкретного capture пока не получены. Следующий шаг — получить файл через MTP
 и независимо проверить его заголовок, точную длину и массивы на Mac. Геометрия
 этой колонки ещё не построена; файловый PASS не подтверждает рендер мира.
+
+## Возврат capture с Switch и подготовка реальной секции
+
+2026-11-24 через DBI/MTP только прочитан `captures/capture-0000/column.ctcol`,
+object16777284, storage0x10001 **1: SD Card**. Получено **399408 bytes**, SHA256
+`88e08eba79541afb785352261641be20d57f51d013f414e5b6e7b27ee8c9b921`.
+Private файл и отчёт лежат в ignored `.local/switch-captures/2026-11-24/`.
+Python независимо проверил CTCOL001/777/format1, reserved, точные counts/length,
+min-Y/sections bounds и каждый block ID по prepared facts: **24 sections,
+98304 blocks, 1536 biomes**, 97 уникальных block IDs, 3 biome IDs.
+Никаких файлов на SD при возврате capture не меняли.
+
+Host exporter `export_section_scene` использует непосредственно pure Rust
+`snapshot.rs` из console codec, повторно проверяет файл, facts/selection pins
+и hashes, все manifest-listed assets. Выбрана явная секция index8, **Y64..79**,
+4096 ячеек/17 raw states. 3220 имеют настоящий INVISIBLE render shape;
+**876** ячеек дают модельную геометрию. Все multipart parts сохраняются, для
+weighted parts явно выбрана первая альтернатива без RNG/jitter parity.
+Оригинальные quads запекает Horizon; координаты переводятся в section-local
+space. No air-ID/cube fallback. Fluids, unsupported render shapes и textures
+с animation/mcmeta/APNG отклоняются, не подменяются. Для этой секции таких
+пропусков не потребовалось. Tint остаётся нейтральным, света мира пока нет.
+
+Реальный private scene: **12** baked requests, **5136** quads,
+**30816** vertices (25164 opaque / 5652 cutout / 0 translucent), 2 draws,
+14 sprites в 128x128 RGBA atlas. Bounds `(0,0,0)..(16,16,16)`.
+`captured-section-scene.bin`: **805216 bytes**, SHA256
+`614e93ff4269cf4e7fbb9d7fd4392000456d102380a99d5949baef0ca49c1598`.
+898 quads содержат tint index и отображаются с neutral white vertex tint.
+Original quads не сокращались neighbor-occlusion culling; это bounded static
+preview, не финальная архитектура renderer.
+
+Host Rust fmt/clippy all-targets `-D warnings`: PASS. `cargo test --all-targets`
+прошёл **78 tests** (47 lib, 3 bin, 7 original mesh exporter, 20 section exporter
+включая shared snapshot tests, 1 original texture exporter). Проверяются Y/Z/X
+translation, multipart/quad order, UV/modes/winding, missing-ID/geometry/atlas/
+vertex limits, точные bytes CTTEX001, transactional publication/no-overwrite.
+При parent review добавлена проверка fully collapsed bounds, чтобы exporter
+не публиковал scene, которую runtime camera отвергнет.
+
+Independent C harness, real runtime Rust decoder/camera/sorter и новая scene:
+**494 checks, 0 failures**; C ASan/UBSan, Rust uninstrumented. Отдельный Python
+parse проверил scene header/exact length, все vertices/UV/bounds/draw ranges,
+capture hash и independently counted 3220 invisible/876 modeled cells.
+Ignored reports: `texture-probe/build/section-independent-check.json` и private
+`captured-section-scene.json`. Host file save/decoder и runtime scene decoder
+используют реальные Rust implementations, а не stubs.
+
+## Captured Section Probe 0.11.0: SDK и упаковка
+
+`bash scripts/build-switch.sh docker section` прошёл offline с существующим
+`devkitpro/devkita64:20260219`, без image pulls/новых dependencies. Новая
+сборка использует проверенные textured Rust decoder/camera/sorter и native
+deko3d bridge/shaders. Отдельные target, RomFS и filename сохраняют 0.9.1.
+Для opaque/cutout-only scene geometry загружается один раз; camera-only changes
+обновляют MVP без полного vertex re-upload. При наличии blended draws остаются
+sort/re-upload на изменение камеры. FPS этим изменением не измерялся.
+
+NRO0/ASET/NACP title **CraftRustNX Captured Section Probe**, version **0.11.0**,
+ELF64 LE AArch64 DYN, no DT_TEXTREL; все **416** relocation targets writable.
+`craftrustnx-section-probe-0.11.0.nro`: **315765 bytes**, SHA256
+`376c7b709760c08b22c11da78dcc54d8878adf85311cd483ae01162e2427d1a8`.
+Ignored report: `texture-probe/build/section-artifact.json`. Экспериментальные
+артефакты около 697 MiB, свободно около 18 GiB, useful caches сохранены.
+
+Это подготовка/host/SDK PASS. Визуальная проверка именно captured section на
+Switch пока ожидается. Подключённый world renderer, on-device meshing/cache,
+light/biome tint, block entities, live updates и gameplay не реализованы;
+`PlayerLoaded` не отправляется. Minecraft pixels, geometry и capture остаются
+private и не входят в GitHub.
+
+## MTP-передача Captured Section 0.11.0
+
+2026-11-24 после повторного включения MTP на Switch в storage0x10001
+**1: SD Card**, `switch/craftrustnx`, записаны три новых файла:
+
+- `craftrustnx-section-probe-0.11.0.nro`, session object16777283,
+  315765 bytes, SHA256 `376c7b709760c08b22c11da78dcc54d8878adf85311cd483ae01162e2427d1a8`;
+- `captured-section-scene.bin`, session object16777284, 805216 bytes,
+  SHA256 `614e93ff4269cf4e7fbb9d7fd4392000456d102380a99d5949baef0ca49c1598`;
+- `craftrustnx-section-notices.txt`, session object16777285, 16338 bytes,
+  SHA256 `31991ba68793f056a539639b33793f465c95f7762e03e450119196695f9fb620`.
+
+Metadata path/storage/size и полное обратное чтение каждого файла проверены;
+bytes совпали. Existing files не перезаписывались, в том числе сцена/NRO 0.9.1
+и исходный capture. Ignored report: `texture-probe/build/mtp-section-0.11.0.json`.
+Сессионные MTP object handles не считаются стабильными ID между подключениями.
+Temporary helper/readbacks удалены. Визуальный результат 0.11.0 пока ожидается.

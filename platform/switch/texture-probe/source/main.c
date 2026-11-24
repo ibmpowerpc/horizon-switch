@@ -9,12 +9,23 @@
 _Static_assert(sizeof(struct tx_vertex) == 24, "texture vertex ABI");
 _Static_assert(sizeof(struct tx_draw) == 16, "draw ABI");
 _Static_assert(sizeof(struct tx_scene_info) == 48, "scene ABI");
+#ifdef CRAFTRUSTNX_SECTION_PREVIEW
+static const char *TITLE = "CraftRustNX: Captured Section Probe 0.11.0";
+static const char *SCOPE = "One captured Java section. First model options, neutral tint. "
+                           "No world light, live updates or gameplay.";
+static const char *PATH = "sdmc:/switch/craftrustnx/captured-section-scene.bin";
+static const char *CHECK_LABEL = "Check captured ground, trees/plants, cutout holes and camera controls.";
+static const char *COPY_LABEL = "Copy captured-section-scene.bin beside this NRO and relaunch.";
+#else
 static const char *TITLE = "CraftRustNX: Rust Texture Probe 0.9.1";
 static const char *SCOPE = "Static models and textures. Neutral tint; no "
                            "biome/light/animation or gameplay.";
+static const char *PATH = "sdmc:/switch/craftrustnx/texture-probe-scene.bin";
+static const char *CHECK_LABEL = "Check nine textured shapes, flower holes, glass/depth and sprite edges.";
+static const char *COPY_LABEL = "Copy texture-probe-scene.bin beside this NRO and relaunch.";
+#endif
 static const char *CONTROLS =
     "A: orbit | B: background | X: reset | right stick: camera | ZL/ZR: zoom";
-static const char *PATH = "sdmc:/switch/craftrustnx/texture-probe-scene.bin";
 static const char *EXIT_LABEL = "Plus: return to hbmenu";
 static void wait_exit(PadState *pad) {
   while (appletMainLoop()) {
@@ -105,15 +116,14 @@ int main(int argc, char **argv) {
   puts(SCOPE);
   puts(CONTROLS);
   puts(PATH);
-  puts("Check nine textured shapes, flower holes, glass/depth and sprite "
-       "edges.");
+  puts(CHECK_LABEL);
   struct scene scene = {0};
   int32_t status = load_scene(&scene);
   const Result romfs = romfsInit();
   if (status != 0 || R_FAILED(romfs)) {
     printf("Scene status: %" PRId32 " | RomFS: 0x%08x\n", status,
            (unsigned)romfs);
-    puts("Copy texture-probe-scene.bin beside this NRO and relaunch.");
+    puts(COPY_LABEL);
     puts(EXIT_LABEL);
     wait_exit(&pad);
     release_scene(&scene);
@@ -156,6 +166,9 @@ int main(int argc, char **argv) {
   struct tp_app_frame frame = {0};
   float previous_mvp[16] = {0};
   bool have_mesh = false;
+  bool needs_depth_sort = false;
+  for (uint32_t i = 0; i < scene.info.draw_count; ++i)
+    if (scene.draws[i].mode == TX_TRANSLUCENT) needs_depth_sort = true;
   const uint64_t tick = armGetSystemTick();
   uint64_t frames = 0;
   bool closing = false;
@@ -172,8 +185,10 @@ int main(int argc, char **argv) {
         stick.y / 32767.0f, &frame);
     if (status != 0 || frame.should_exit)
       break;
-    if (!have_mesh ||
-        memcmp(previous_mvp, frame.mvp, sizeof(previous_mvp)) != 0) {
+    // Opaque/cutout geometry is camera-independent and stays on the GPU.
+    // Only blended quads need re-sorting and re-upload on a camera change.
+    if (!have_mesh || (needs_depth_sort &&
+        memcmp(previous_mvp, frame.mvp, sizeof(previous_mvp)) != 0)) {
       status = craftrustnx_texture_sort(
           scene.vertices, scene.info.mesh.vertex_count, scene.draws,
           scene.info.draw_count, frame.mvp);
