@@ -15,8 +15,10 @@ plan; live world rendering is still future work.
 
 The bounded 0.12.0 prototype now implements allocation-free Rust on-device
 meshing from this saved column and a compact model bank. Host C ABI output
-matches every 0.11 vertex/draw/atlas byte; SDK packaging passes. Device visual
-and timing results are pending. The bank covers only the chosen section's
+matches every 0.11 vertex/draw/atlas byte; SDK packaging passes. The user
+confirmed the same fingerprint and visual result on Switch Lite, reporting
+2.888 ms for query + allocation + build (one run, excluding file I/O; not a
+frame time). The bank covers only the chosen section's
 17 states; a complete resource pack and a network-fed cache are not implemented.
 
 ## First bounded deliverable: retain the actual server column

@@ -8,6 +8,11 @@ saved raw-ID column and model bank, finds each selected cell's model, translates
 the template vertices and produces the GPU mesh. The existing native bridge
 handles file/pad and SDK resource I/O.
 
+On 2026-11-24 the user confirmed fingerprint `b7ac981c4e14246d`, the same
+visual result as 0.11, and **2.888 ms** displayed query + allocation + build
+time on Switch Lite. This is one reported setup measurement, excluding file
+reads and the fingerprint loop; it is not a rendering frame-time measurement.
+
 It is a saved-section test. Network receipt and rendering remain separate,
 with no world light, biome tint, fluids, animation, block entities, live updates,
 collision or gameplay. The first model alternative is the same explicit static
