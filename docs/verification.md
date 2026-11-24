@@ -1422,3 +1422,20 @@ Metadata storage/path/size и полное побайтовое обратное
 Ignored report: `texture-probe/build/mtp-column-mesh-0.12.0.json`.
 Свои temporary helper/readbacks удалены. Аппаратные fingerprint, внешний вид
 и время построения mesh пока ожидаются.
+
+## Аппаратный PASS Rust Column Mesh 0.12.0
+
+2026-11-24 пользователь сообщил: **«2.888 ms, fingerprint такой же, графика
+выглядит так же»**. Для переданного NRO0.12.0 SHA256
+`18c160fa232fca6382d1d321e3603e8777502321779b71a25772d486cf07c057`
+подтверждены fingerprint **`b7ac981c4e14246d`** и визуальное совпадение секции
+с 0.11 на Switch Lite. Это аппаратное подтверждение построения mesh Rust-кодом
+консоли из saved capture и compact model bank, а не чтения готового vertex mesh.
+
+Отображённое время **2.888 ms** включает Rust query, native allocation и Rust
+build; file I/O и fingerprint loop исключены. Это один сообщённый запуск,
+не распределение timings и не frame time/FPS. Отдельные замеры памяти и controls
+не сообщались. Аппаратное ожидание 0.12 закрыто; повторная передача не нужна.
+Следующий этап — связать сетевой приём данных и on-device meshing/rendering.
+Банк пока ограничен 17 состояниями секции; connected cache/renderer, world
+light/biome tint, live updates и gameplay этим PASS не подтверждены.
