@@ -9,7 +9,8 @@ separate applications. A connected terrain renderer is not implemented yet.
 then the returned 24-section file passed independent host format/ID validation.
 Its explicitly selected section 8 (Y64..79) has been baked into a private static
 scene for Captured Section Probe 0.11.0. Host/ABI/cross-build checks pass;
-hardware visual acceptance is pending. The stages below remain the integration
+the user confirmed the captured section renders correctly on Switch Lite.
+The stages below remain the integration
 plan; on-device meshing and live world rendering are still future work.
 
 ## First bounded deliverable: retain the actual server column

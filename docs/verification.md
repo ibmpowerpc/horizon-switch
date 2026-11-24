@@ -1327,3 +1327,16 @@ bytes совпали. Existing files не перезаписывались, в �
 и исходный capture. Ignored report: `texture-probe/build/mtp-section-0.11.0.json`.
 Сессионные MTP object handles не считаются стабильными ID между подключениями.
 Temporary helper/readbacks удалены. Визуальный результат 0.11.0 пока ожидается.
+
+## Аппаратный визуальный PASS Captured Section 0.11.0
+
+2026-11-24 пользователь подтвердил **«всё рендерится правильно»** после
+передачи Captured Section Probe 0.11.0 и статичной сцены секции из своего
+Java-мира. NRO SHA256
+`376c7b709760c08b22c11da78dcc54d8878adf85311cd483ae01162e2427d1a8`,
+scene SHA256 `614e93ff4269cf4e7fbb9d7fd4392000456d102380a99d5949baef0ca49c1598`.
+Это подтверждает внешний вид captured section на Switch Lite. Отдельные
+FPS/timings, controls и измерения памяти в этом ответе не сообщались.
+Геометрия по-прежнему запечена host Rust; on-device meshing, connected world
+renderer, biome tint/lighting, live updates и gameplay этим PASS не проверены.
+Визуальное ожидание 0.11.0 закрыто, повторная сборка/передача не нужна.

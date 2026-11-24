@@ -8,6 +8,10 @@ Rust on Switch validates the scene and controls the camera; the existing
 libnx/deko3d shim uploads and draws it. This is a step toward a connected world
 renderer, not a live network client.
 
+On 2026-11-24 the user confirmed that the captured section renders correctly on
+Switch Lite. This closes visual acceptance for the transferred 0.11.0 scene;
+geometry was prepared on the host, and no frame timings were reported.
+
 ## Prepare private data
 
 Keep the capture, prepared resources, generated scene and report under ignored
