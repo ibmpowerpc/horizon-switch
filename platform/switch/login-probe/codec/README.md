@@ -482,8 +482,92 @@ info is zero, arrays and input states unchanged. Pointer validity, alignment and
 non-overlap are caller contracts. Maximum arrays are 256 sections; only raw IDs
 are produced, with no air, opacity, block name or readiness semantics.
 
+## `craftrustnx_column_copy`
+
+Validates one complete play id 46 body (same structural checks as the world
+decoder, including heightmaps, NBT and light) and copies normalized block-state
+and biome ids into caller-owned `u32` arrays. Only the first `sections * 4096`/
+`sections * 64` elements are written; tail is untouched. Statuses
+`COL_OK 0`, `COL_BAD_ARGUMENT -1`, `COL_OUTPUT_SMALL -2`, `COL_BAD_FRAME -3`,
+`COL_UNSUPPORTED -5`, `COL_LIMIT -6`.
+
 Parent verification: 109 tests pass (the existing 103 plus six column-copy
 tests), fmt and clippy `-D warnings` pass. New tests check full mixed-palette
 columns at negative coordinates, cell order, malformed light tails, capacities,
 ABI/null bounds and invalid palettes/trailing bytes. The parent corrected an
 additional overlong local-palette test buffer so its valid prefix is well formed.
+
+## Bounded column snapshot format (`snapshot`)
+
+`src/snapshot.rs` and `src/snapshot_ffi.rs` implement the **CTCOL001** binary
+format for normalized column data, for later Rust meshing. Pure Rust and C ABI
+entry points encode and decode complete snapshots from raw u32 state/biome IDs.
+
+### Format specification
+
+- **Magic**: `"CTCOL001"` (8 bytes)
+- **Protocol**: `777` (u32 LE)
+- **Format**: `1` (u32 LE)
+- **chunk_x**: `i32` LE
+- **chunk_z**: `i32` LE
+- **min_y**: `i32` LE (must be multiple of 16)
+- **sections**: `u32` LE (1..=256)
+- **blocks_written**: `u32` LE (sections * 4096)
+- **biomes_written**: `u32` LE (sections * 64)
+- **reserved**: 8 bytes, all zero
+- **Data**: exactly `sections * 4096` LE `u32` block IDs, then `sections * 64` LE
+  `u32` biome IDs
+
+Total header: **48 bytes**. Data: `sections * (4096 + 64) * 4` bytes.
+Maximum file size: `48 + 256 * (4096 + 64) * 4 = 4,259,888` bytes.
+
+### Rust functions
+
+- `encode_snapshot(chunk_x, chunk_z, min_y, sections, blocks, biomes, out) -> Result<usize, i32>`
+- `decode_snapshot(data, blocks, biomes) -> Result<(i32, i32, i32, u32, u32, u32), i32>`
+- `header_size(sections) -> usize`
+- `MAX_FILE_SIZE`, `MAX_BLOCKS`, `MAX_BIOMES`, `MAX_SECTIONS`, `PROTOCOL`, `SNAP_OK`, `SNAP_BAD_ARGUMENT`, `SNAP_OUTPUT_SMALL`, `SNAP_BAD_FRAME`
+
+All functions validate bounds before any write. `min_y` must be a multiple of 16,
+and `min_y + sections * 16` must fit `i32`. Headers validate reserved bytes are
+zero. On failure, outputs are untouched; status codes match the column codec.
+
+### C ABI
+
+[`../include/column_snapshot.h`](../include/column_snapshot.h) exports:
+
+```c
+int32_t craftrustnx_snapshot_decode_header(const uint8_t *data, uint32_t length, struct snap_info *info);
+int32_t craftrustnx_snapshot_encode(int32_t chunk_x, int32_t chunk_z, int32_t min_y,
+    uint32_t sections, const uint32_t *blocks, uint32_t blocks_written,
+    const uint32_t *biomes, uint32_t biomes_written, uint8_t *out, uint32_t capacity, uint32_t *written);
+int32_t craftrustnx_snapshot_decode(const uint8_t *data, uint32_t length,
+    uint32_t *blocks, uint32_t block_capacity,
+    uint32_t *biomes, uint32_t biome_capacity, struct snap_info *info);
+uint32_t craftrustnx_snapshot_max_file_size(void);
+```
+
+`struct snap_info` mirrors `struct col_info` (24 bytes, same field order).
+Inputs are validated *before* any slice is formed; null pointers and out-of-range
+lengths are `SNAP_BAD_ARGUMENT`. Encoder counts must exactly match the section
+count; invalid section/min-Y inputs are also `SNAP_BAD_ARGUMENT`. Malformed or
+truncated nonempty files are `SNAP_BAD_FRAME`; full decode rejects trailing
+bytes. Header-only decode accepts the 48-byte header without a body. Decoder
+array capacities may exceed the required count up to `SNAP_MAX_*`; smaller
+capacities return `SNAP_OUTPUT_SMALL`. On failure, `info`/`written` is zeroed
+and output arrays/bytes are untouched.
+
+### Tests
+
+Rust tests exercise the C ABI and pure Rust functions:
+
+- encode/decode roundtrip at negative chunk coordinates and min_y
+- min_y bounds (multiple of 16, i32 overflow check)
+- reserved bytes must be zero, wrong magic/protocol/format return `-3`
+- empty input returns `-1`, truncated/malformed files `-3`, short output arrays `-2`
+- exact array counts, complete file length and transactional rejection before writes
+- output tails (beyond written extent) remain untouched
+- header size calculation matches the spec
+
+All tests pass offline (`cargo test --offline --locked`). No allocation, std,
+or unsafe outside FFI. No network or device required.

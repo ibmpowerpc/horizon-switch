@@ -103,6 +103,13 @@ BUILD := build-column-snapshot
 APP_TITLE := CraftRustNX Column Snapshot Probe
 APP_VERSION := 0.7.0
 DEFINES += -DCRAFTRUSTNX_COLUMN_SNAPSHOT
+ifneq ($(strip $(COLUMN_EXPORT)),)
+TARGET := craftrustnx-column-export-probe
+BUILD := build-column-export
+APP_TITLE := CraftRustNX Column Export Probe
+APP_VERSION := 0.10.0
+DEFINES += -DCRAFTRUSTNX_COLUMN_EXPORT
+endif
 endif
 endif
 endif

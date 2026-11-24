@@ -1166,3 +1166,54 @@ Temporary helper/readbacks очищены. Аппаратная проверка
 не сообщались. Подключение Java, декодирование колонок и статическая GPU сцена
 пока проверены отдельными пробами; живой сетевой terrain renderer этим PASS
 не подтверждён. Повторная сборка или передача для фиксации ответа не нужна.
+
+## Column Export Probe 0.10.0: формат, сохранение и сборка
+
+2026-11-24 завершён сохранённый черновик Rust `CTCOL001` и добавлена отдельная
+проба `column-export`. Сетевой worker использует прежний путь входа и приёма
+колонки. После terminal acquire и join кнопка R сохраняет immutable arrays;
+при новом подключении результат сохранения сбрасывается. Rust проверяет точные
+счётчики sections*4096/sections*64, min-Y/верхнюю границу, заголовок 26.3/777,
+полную длину файла и пределы FFI до работы с данными. C shim отвечает только за
+новый каталог, temporary/rename и полное обратное чтение. Существующие capture
+directories не заменяются. Light, block entities, credentials и server address
+в формат не входят; `.ctcol` остаётся private generated data.
+
+Во время независимого C-прогона найден реальный пропуск в черновике: full decode
+не проверял полную длину перед чтением, что давало abort на header-only fixture.
+При интеграции исправлены также неточные counts, частичная запись заголовка при
+ошибке encode и отсутствие верхнего ограничения FFI length перед созданием
+среза. Новая Rust-проверка напрямую закрепляет transactional failure для
+неверных размеров. Неиспользуемые endian additions в общем network `wire.rs`
+удалены; snapshot helpers локальны модулю. Документированная формула исправлена
+на `48 + sections*(4096+64)*4`: 399408 bytes для 24 секций, максимум 4259888.
+
+Проверки выполнены offline, installed Rust1.100.0, cached dependencies, jobs1:
+
+- Rust fmt/clippy all-targets `-D warnings`: PASS; `cargo test`: **132 passed**,
+  включая существующие protocol/configuration/play/world/column/NBT проверки.
+- `tests/run-snapshot-host.sh`: independent handwritten LE header, complete byte
+  order/raw-ID sentinels, negative/extreme coordinates, header-only/full split,
+  truncation/trailing, malformed counts/reserved/pins, null/over-limit arguments,
+  untouched outputs/tails, 256-section maximum: PASS. Real C-to-Rust staticlib.
+- `tests/run-column-store-host.sh`: real temporary files, Rust decode after
+  readback, два разных capture directories, первый файл сохраняет исходные
+  bytes, invalid input и filesystem-error пути: PASS. Свои temporary files
+  удалены. ASan/UBSan применены к C callers/shim; Rust не инструментирован.
+- `bash scripts/build-switch.sh docker column-export`: PASS, существующий
+  `devkitpro/devkita64:20260219`, `--pull=never --network none`; C SDK checks с
+  `-Wall -Wextra -Werror -Wframe-larger-than=32768` отдельно прошли.
+
+`craftrustnx-column-export-probe.nro`: **477381 bytes**, SHA256
+`8d2145712e2b56530298504e3be5e5e5a42cf57e623f40c12d70bbbea2a9c0d8`.
+`verify_switch_artifact.py` подтвердил NRO0/ASET/NACP, title
+**CraftRustNX Column Export Probe**, version **0.10.0**, ELF64 LE AArch64 DYN,
+нет DT_TEXTREL; все 597 dynamic relocation targets в writable segments.
+Ignored report: `login-probe/tests/build/column-export-artifact.json`.
+Артефакты экспериментов 690.8 MiB; свободно 18.3 GiB. Прежние дисковые лимиты
+не применялись, compiler caches сохранены.
+
+Это host/cross-build PASS. MTP-передача 0.10.0, сохранение на SD и независимый
+decode возвращённого Switch-файла пока не выполнены. Новый live Java-мир в этой
+итерации не запускался и не подключался. Прежние проверенные NRO не заменены.
+Terrain mesh, освещение, live updates и `PlayerLoaded` не добавлялись.

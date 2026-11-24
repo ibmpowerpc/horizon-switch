@@ -5,6 +5,9 @@
  */
 #include "login_probe.h"
 #include "probe_defaults.h"
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+#include "column_store.h"
+#endif
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +15,9 @@
 #include <switch.h>
 
 // UI diagnostic labels (centralized for later localization).
-#if defined(CRAFTRUSTNX_COLUMN_SNAPSHOT)
+#if defined(CRAFTRUSTNX_COLUMN_EXPORT)
+static const char *LABEL_TITLE = "CraftRustNX: Column Export Probe 0.10.0";
+#elif defined(CRAFTRUSTNX_COLUMN_SNAPSHOT)
 static const char *LABEL_TITLE = "CraftRustNX: Column Snapshot Probe";
 #elif defined(CRAFTRUSTNX_WORLD_DATA)
 static const char *LABEL_TITLE = "CraftRustNX: Structured World Data Probe";
@@ -25,7 +30,14 @@ static const char *LABEL_TITLE = "CraftRustNX: Encrypted Offline Login Probe";
 #else
 static const char *LABEL_TITLE = "CraftRustNX: Java Server LOGIN Probe (Offline)";
 #endif
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+static const char *LABEL_CONTROLS = "X: host | Y: port | L: name | A: connect | B: cancel | R: save | Plus: exit";
+static const char *LABEL_SAVE_READY = "R: save this column to SD (raw IDs, no lighting or models).";
+static const char *LABEL_SAVE_OK = "Saved and read back: %s\n";
+static const char *LABEL_SAVE_FAILED = "Save failed: %d | snapshot codec: %d\n";
+#else
 static const char *LABEL_CONTROLS = "X: host | Y: port | L: name | A: connect | B: cancel | Plus: exit";
+#endif
 static const char *LABEL_HOST = "Host:";
 static const char *LABEL_PORT = "Port:";
 static const char *LABEL_NAME = "Player:";
@@ -202,6 +214,11 @@ int main(void) {
     bool thread_active = false;
     bool quitting = false;
     Result platform_error = 0;
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+    char saved_path[512] = {0};
+    bool save_attempted = false;
+    int save_status = 0, save_codec_error = 0;
+#endif
 
     while (appletMainLoop()) {
         padUpdate(&pad);
@@ -290,6 +307,10 @@ int main(void) {
 
         // A: connect (disabled if host empty, busy, or sockets failed).
         if ((down & HidNpadButton_A) && !is_busy && !quitting && sockets_ok && job.host[0] != '\0') {
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+            saved_path[0] = 0;
+            save_attempted = false;
+#endif
             atomic_store(&job.cancel, false);
             atomic_store(&job.stage, LJ_IDLE);
             job.error = LJ_ERR_NONE;
@@ -317,6 +338,18 @@ int main(void) {
         // snapshot while that worker is resetting/writing the result fields.
         current_stage = atomic_load_explicit(&job.stage, memory_order_acquire);
         is_terminal = terminal_stage(current_stage);
+
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+        // Only the joined worker's immutable, validated result may be saved.
+        if ((down & HidNpadButton_R) && !thread_active && !quitting &&
+            current_stage == LJ_COLUMN_SNAPSHOT && job.column_error == COL_OK &&
+            job.column_sample_match) {
+            save_status = lj_store_column("sdmc:/switch/craftrustnx/captures", &job.column,
+                job.column_blocks, job.column_biomes, saved_path, sizeof(saved_path),
+                &save_codec_error);
+            save_attempted = true;
+        }
+#endif
 
         // B: cancel (only if thread active and not terminal).
         if ((down & HidNpadButton_B) && thread_active && !is_terminal) {
@@ -347,6 +380,13 @@ int main(void) {
         sanitize_display((const uint8_t *)job.name, (uint32_t)strlen(job.name), 16);
         printf("\x1b[K\n");
         printf("%s %s\x1b[K\n", LABEL_STAGE, stage_name(current_stage));
+#ifdef CRAFTRUSTNX_COLUMN_EXPORT
+        if (save_attempted) {
+            if (save_status == 0) printf(LABEL_SAVE_OK, saved_path);
+            else printf(LABEL_SAVE_FAILED, save_status, save_codec_error);
+        } else if (!thread_active && current_stage == LJ_COLUMN_SNAPSHOT &&
+            job.column_error == COL_OK && job.column_sample_match) puts(LABEL_SAVE_READY);
+#endif
 
         if (is_terminal) {
             if (job.saw_encryption_request) {

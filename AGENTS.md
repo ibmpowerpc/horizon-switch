@@ -286,12 +286,13 @@ covered while changing platform implementations.
 ## Delegation preference
 
 For substantial Switch work, use the codex-orchestrator skill and delegate
-bounded tasks through T3. The user's current replacement for DeepSeek is the
-native Grok provider (`grok`, model `grok-4.7`); Kiro (`kiro`, model
-`qwen3-coder-next`) remains authorized. Do not silently switch provider routes or
-models after an error. The user explicitly authorized Kiro to finish the static
-texture-atlas work, including its real-resource integration, if the other lane
-cannot finish. Codex owns interfaces, integration and final verification. Give
+bounded tasks through T3. On 2026-11-24 the user restored DeepSeek through
+OpenCode (`opencode/deepseek-v4.1-flash-free`) and requested **GLM5 instead of
+Qwen for future Kiro tasks**, after the current Qwen task finishes. Discover
+GLM5's exact model ID in the `kiro` provider before launching it; the current
+T3 search returns no matching model entries. Do not fall back to Qwen, a default
+model or a CLI when discovery is unavailable. Do not silently switch provider
+routes or models after an error. Codex owns interfaces, integration and final verification. Give
 children disjoint file ownership and do not permit recursive delegation.
 
 For future tasks assigned to Kilo (`acpRegistry_kilo`), use the user-selected

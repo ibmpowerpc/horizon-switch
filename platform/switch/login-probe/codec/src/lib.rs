@@ -41,6 +41,8 @@ pub mod column;
 pub mod column_ffi;
 pub mod ffi;
 pub mod play_ffi;
+pub mod snapshot;
+pub mod snapshot_ffi;
 pub mod world_ffi;
 
 pub use column::{
@@ -66,6 +68,17 @@ pub use play::{
     PL_TRANSFER, PL_UNSUPPORTED,
 };
 pub use play_ffi::craftrustnx_play_decode_body;
+pub use snapshot::{
+    decode_header, decode_snapshot, encode_header, encode_snapshot, header_size, HEADER_SIZE,
+    MAX_BIOMES, MAX_BLOCKS, MAX_FILE_SIZE, MAX_SECTIONS, PROTOCOL as SNAPSHOT_PROTOCOL,
+    SNAP_BAD_ARGUMENT, SNAP_BAD_FRAME, SNAP_HEADER_SIZE, SNAP_MAX_BIOMES, SNAP_MAX_BLOCKS,
+    SNAP_MAX_FILE_SIZE, SNAP_MAX_SECTIONS, SNAP_OK, SNAP_OUTPUT_SMALL,
+};
+pub use snapshot_ffi::craftrustnx_snapshot_decode;
+pub use snapshot_ffi::craftrustnx_snapshot_decode_header;
+pub use snapshot_ffi::craftrustnx_snapshot_encode;
+pub use snapshot_ffi::craftrustnx_snapshot_max_file_size;
+pub use snapshot_ffi::SnapInfo;
 pub use world::{
     decode_world_body, WcDimension, WcEvent, WcState, WorldDecoded, WorldError, WC_BAD_ARGUMENT,
     WC_BAD_FRAME, WC_BIOMES, WC_CHUNK, WC_CONFIGURATION, WC_DIMENSIONS, WC_LIGHT, WC_LIMIT,
