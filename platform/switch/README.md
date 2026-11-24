@@ -226,3 +226,13 @@ block/biome ID через Rust в статических буферах и св�
 пока без biome tint, освещения мира, live updates и игрового управления.
 Подготовка, сборка `docker section` и controls описаны в
 [SECTION-PREVIEW.md](texture-probe/SECTION-PREVIEW.md).
+
+## Построение mesh на Switch
+
+**CraftRustNX Rust Column Mesh Probe 0.12.0** читает сохранённую колонку и
+подготовленную таблицу шаблонов. Вершины секции строит allocation-free Rust
+на консоли; native shim отвечает за файлы, ввод и GPU. Host-прогон нового
+mesher совпал побайтно со сценой 0.11. Банк пока содержит только 17 state IDs
+выбранной секции, не полный набор ресурсов клиента. Подготовка, сборка
+`docker column-mesh`, fingerprint и аппаратная проверка описаны в
+[COLUMN-MESH-PROBE.md](texture-probe/COLUMN-MESH-PROBE.md).

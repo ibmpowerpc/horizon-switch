@@ -23,8 +23,12 @@ case "$variant" in
     native_args=("TERRAIN_ARCHIVE=$project_dir/$archive_rel")
     docker_args=("TERRAIN_ARCHIVE=/workspace/$archive_rel")
     ;;
-  texture|section)
-    bash "$project_dir/platform/switch/texture-probe/build.sh"
+  texture|section|column-mesh)
+    if [[ "$variant" == column-mesh ]]; then
+      bash "$project_dir/platform/switch/texture-probe/build.sh" column-mesh
+    else
+      bash "$project_dir/platform/switch/texture-probe/build.sh"
+    fi
     target=craftrustnx-texture-probe
     archive_rel=platform/switch/rust-probe/target/aarch64-nintendo-switch-freestanding/release/libcraftrustnx_terrain_probe.a
     native_args=("TEXTURE_ARCHIVE=$project_dir/$archive_rel")
@@ -33,6 +37,11 @@ case "$variant" in
       target=craftrustnx-section-probe
       native_args+=(SECTION_PREVIEW=1)
       docker_args+=(SECTION_PREVIEW=1)
+    fi
+    if [[ "$variant" == column-mesh ]]; then
+      target=craftrustnx-column-mesh-probe
+      native_args+=(COLUMN_MESH=1)
+      docker_args+=(COLUMN_MESH=1)
     fi
     ;;
   rust)
@@ -93,7 +102,7 @@ case "$variant" in
       fi
     fi
     ;;
-  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot, column-export, gpu, terrain, texture or section.' >&2; exit 2 ;;
+  *) echo 'Variant must be hardware, rust, std, net, login, encrypted-login, configuration, play-session, world-data, column-snapshot, column-export, gpu, terrain, texture, section or column-mesh.' >&2; exit 2 ;;
 esac
 
 case "${1:-docker}" in
@@ -111,7 +120,7 @@ case "${1:-docker}" in
       devkitpro/devkita64:20260219 make "${docker_args[@]}"
     ;;
   *)
-    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|column-export|gpu|terrain|texture|section]' >&2
+    echo 'Usage: bash scripts/build-switch.sh [docker|native] [hardware|rust|std|net|login|encrypted-login|configuration|play-session|world-data|column-snapshot|column-export|gpu|terrain|texture|section|column-mesh]' >&2
     exit 2
     ;;
 esac
@@ -145,6 +154,16 @@ if [[ "$variant" == section ]]; then
   if [[ -f "$scene" ]]; then
     cp "$scene" "$project_dir/dist/switch/craftrustnx/captured-section-scene.bin"
   fi
+fi
+if [[ "$variant" == column-mesh ]]; then
+  cp "$project_dir/platform/switch/terrain-probe/SDK-NOTICES.txt" \
+    "$project_dir/dist/switch/craftrustnx/craftrustnx-column-mesh-notices.txt"
+  for file in section-model-bank.bin column-mesh-capture.ctcol; do
+    input="$project_dir/.local/switch-models/26.3/$file"
+    if [[ -f "$input" ]]; then
+      cp "$input" "$project_dir/dist/switch/craftrustnx/$file"
+    fi
+  done
 fi
 echo "NRO: $project_dir/dist/switch/craftrustnx/$target.nro"
 python3 "$project_dir/platform/switch/check-budget.py"

@@ -4,6 +4,7 @@
 #[path = "../../../platform/switch/login-probe/codec/src/snapshot.rs"]
 mod snapshot;
 
+use craftrustnx_model_prep::bank::encode_model_bank;
 use craftrustnx_model_prep::scene_inputs::{hash, load_manifest, pinned, read, PIN};
 use craftrustnx_model_prep::section::{encode_scene, mesh_section};
 use craftrustnx_model_prep::{bake_requested, build_static_atlas, AtlasLimits, BakeRequest};
@@ -125,6 +126,7 @@ fn publish_pair(output: &Path, scene: &[u8], report: &[u8]) -> Result<()> {
 fn run() -> Result<()> {
     let mut capture = None;
     let mut section = None;
+    let mut bank_output = None;
     let mut assets = PathBuf::from(".local/switch-assets/26.3");
     let mut facts_path = PathBuf::from(".local/switch-state-facts/26.3/state_facts.json");
     let mut selection_path = PathBuf::from(".local/switch-models/26.3/model-selection.json");
@@ -133,7 +135,7 @@ fn run() -> Result<()> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         if arg == "--help" {
-            println!("export_section_scene --capture FILE --section INDEX [--assets DIR] [--facts FILE] [--selection FILE] [--output FILE]");
+            println!("export_section_scene --capture FILE --section INDEX [--assets DIR] [--facts FILE] [--selection FILE] [--output FILE] [--bank-output FILE]");
             return Ok(());
         }
         if !seen.insert(arg.clone()) {
@@ -147,11 +149,13 @@ fn run() -> Result<()> {
             "--facts" => facts_path = v.into(),
             "--selection" => selection_path = v.into(),
             "--output" => output = v.into(),
+            "--bank-output" => bank_output = Some(PathBuf::from(v)),
             _ => return Err("unknown argument".into()),
         }
     }
-    if fs::symlink_metadata(&output).is_ok()
-        || fs::symlink_metadata(output.with_extension("json")).is_ok()
+    let destination = bank_output.as_ref().unwrap_or(&output);
+    if fs::symlink_metadata(destination).is_ok()
+        || fs::symlink_metadata(destination.with_extension("json")).is_ok()
     {
         return Err("output already exists; no replacement".into());
     }
@@ -276,7 +280,7 @@ fn run() -> Result<()> {
     )?;
     let mesh = mesh_section(cells, &models, &atlas)?;
     let bytes = encode_scene(&mesh, &atlas)?;
-    let summary = json!({
+    let mut summary = json!({
         "schema":1,"minecraft":"26.3","protocol":777,"source_sha1":PIN,
         "asset_manifest_sha256":manifest_hash,"facts_sha256":hash(&facts_bytes),
         "selection_sha256":hash(&selection_bytes),"scene_sha256":hash(&bytes),"bytes":bytes.len(),
@@ -293,7 +297,17 @@ fn run() -> Result<()> {
         "atlas_width":atlas.width,"atlas_height":atlas.height,"sprites":atlas.sprites.len(),
         "scope":"Static captured section in local coordinates. First weighted options, original multipart models. Neutral tint, no world light, fluid, animation, block entity rendering, jitter/RNG, neighbor occlusion, live updates or gameplay."
     });
-    publish_pair(&output, &bytes, &serde_json::to_vec_pretty(&summary)?)?;
+    if bank_output.is_some() {
+        let bank = encode_model_bank(&models, &atlas)?;
+        summary["artifact_kind"] = json!("CTBANK01 model bank for on-device meshing");
+        summary["bank_sha256"] = json!(hash(&bank));
+        summary["bank_bytes"] = json!(bank.len());
+        summary["bank_states"] = json!(models.len());
+        summary["bank_template_vertices"] = json!(u32::from_le_bytes(bank[20..24].try_into()?));
+        publish_pair(destination, &bank, &serde_json::to_vec_pretty(&summary)?)?;
+    } else {
+        publish_pair(destination, &bytes, &serde_json::to_vec_pretty(&summary)?)?;
+    }
     println!("{}", serde_json::to_string_pretty(&summary)?);
     Ok(())
 }

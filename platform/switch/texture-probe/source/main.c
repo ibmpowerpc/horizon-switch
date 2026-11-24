@@ -1,5 +1,9 @@
 /* SDK lifecycle and file/pad I/O. Rust validates, controls camera and sorts. */
 #include "texture_app.h"
+#ifdef CRAFTRUSTNX_COLUMN_MESH
+#include "column_mesh.h"
+_Static_assert(sizeof(struct cm_info) == 72, "column mesh ABI");
+#endif
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -9,7 +13,15 @@
 _Static_assert(sizeof(struct tx_vertex) == 24, "texture vertex ABI");
 _Static_assert(sizeof(struct tx_draw) == 16, "draw ABI");
 _Static_assert(sizeof(struct tx_scene_info) == 48, "scene ABI");
-#ifdef CRAFTRUSTNX_SECTION_PREVIEW
+#ifdef CRAFTRUSTNX_COLUMN_MESH
+static const char *TITLE = "CraftRustNX: Rust Column Mesh Probe 0.12.0";
+static const char *SCOPE = "Rust builds a saved section on Switch. First model options, neutral tint. "
+                          "No world light, live updates or gameplay.";
+static const char *PATH = "sdmc:/switch/craftrustnx/section-model-bank.bin";
+static const char *CAPTURE_PATH = "sdmc:/switch/craftrustnx/column-mesh-capture.ctcol";
+static const char *CHECK_LABEL = "Compare this section with 0.11; check plants, cutout holes and camera.";
+static const char *COPY_LABEL = "Copy section-model-bank.bin and column-mesh-capture.ctcol beside this NRO.";
+#elif defined(CRAFTRUSTNX_SECTION_PREVIEW)
 static const char *TITLE = "CraftRustNX: Captured Section Probe 0.11.0";
 static const char *SCOPE = "One captured Java section. First model options, neutral tint. "
                            "No world light, live updates or gameplay.";
@@ -40,6 +52,10 @@ struct scene {
   struct tx_vertex *vertices;
   struct tx_draw draws[TX_MAX_DRAWS];
   struct tx_scene_info info;
+#ifdef CRAFTRUSTNX_COLUMN_MESH
+  struct cm_info column;
+  uint64_t mesh_ns, vertex_fingerprint;
+#endif
 };
 static void release_scene(struct scene *s) {
   free(s->bytes);
@@ -47,6 +63,7 @@ static void release_scene(struct scene *s) {
   s->bytes = NULL;
   s->vertices = NULL;
 }
+#ifndef CRAFTRUSTNX_COLUMN_MESH
 static int32_t load_scene(struct scene *s) {
   FILE *f = fopen(PATH, "rb");
   if (!f)
@@ -89,6 +106,59 @@ static int32_t load_scene(struct scene *s) {
     release_scene(s);
   return result;
 }
+#else
+static int32_t read_blob(const char *path, size_t maximum, uint8_t **bytes, size_t *size) {
+  FILE *f = fopen(path, "rb");
+  if (!f) return -101;
+  if (fseek(f, 0, SEEK_END)) { fclose(f); return -102; }
+  const long length = ftell(f);
+  if (length < 48 || (size_t)length > maximum || fseek(f, 0, SEEK_SET)) {
+    fclose(f); return -103;
+  }
+  *bytes = malloc((size_t)length);
+  if (!*bytes) { fclose(f); return -104; }
+  const size_t got = fread(*bytes, 1, (size_t)length, f);
+  const int tail = fgetc(f), error = ferror(f), closed = fclose(f);
+  if (got != (size_t)length || tail != EOF || error || closed) {
+    free(*bytes); *bytes = NULL; return -105;
+  }
+  *size = (size_t)length;
+  return 0;
+}
+static int32_t load_scene(struct scene *s) {
+  uint8_t *capture = NULL;
+  size_t capture_length = 0, bank_length = 0;
+  int32_t result = read_blob(CAPTURE_PATH, 4259888, &capture, &capture_length);
+  if (result) return result;
+  result = read_blob(PATH, 16*1024*1024, &s->bytes, &bank_length);
+  if (result) { free(capture); return result; }
+  const uint64_t begin = armGetSystemTick();
+  result = craftrustnx_column_mesh(capture, capture_length, s->bytes, bank_length,
+      8, NULL, 0, NULL, 0, &s->column);
+  if (result == 0) {
+    const uint32_t count = s->column.scene.mesh.vertex_count;
+    if (!count || count > TX_MAX_VERTICES) result = -103;
+    else {
+      s->vertices = malloc((size_t)count * sizeof(*s->vertices));
+      if (!s->vertices) result = -104;
+      else result = craftrustnx_column_mesh(capture, capture_length, s->bytes, bank_length,
+          8, s->vertices, count, s->draws, TX_MAX_DRAWS, &s->column);
+    }
+  }
+  s->mesh_ns = armTicksToNs(armGetSystemTick() - begin);
+  free(capture);
+  if (result) { release_scene(s); return result; }
+  s->info = s->column.scene;
+  // Diagnostic fingerprint over the generated vertex bytes, not a security hash.
+  const uint8_t *v = (const uint8_t *)s->vertices;
+  s->vertex_fingerprint = UINT64_C(14695981039346656037);
+  for (size_t i = 0; i < (size_t)s->info.mesh.vertex_count * sizeof(*s->vertices); ++i) {
+    s->vertex_fingerprint ^= v[i];
+    s->vertex_fingerprint *= UINT64_C(1099511628211);
+  }
+  return 0;
+}
+#endif
 static uint32_t input(uint64_t down, uint64_t held) {
   uint32_t b = 0;
   if (down & HidNpadButton_A)
@@ -116,6 +186,9 @@ int main(int argc, char **argv) {
   puts(SCOPE);
   puts(CONTROLS);
   puts(PATH);
+#ifdef CRAFTRUSTNX_COLUMN_MESH
+  puts(CAPTURE_PATH);
+#endif
   puts(CHECK_LABEL);
   struct scene scene = {0};
   int32_t status = load_scene(&scene);
@@ -136,6 +209,13 @@ int main(int argc, char **argv) {
          " draws, atlas %" PRIu32 " x %" PRIu32 ".\n",
          scene.info.mesh.vertex_count, scene.info.draw_count, scene.info.width,
          scene.info.height);
+#ifdef CRAFTRUSTNX_COLUMN_MESH
+  printf("Rust meshed section %" PRIu32 " (Y=%" PRId32 "), modeled=%" PRIu32 " empty=%" PRIu32 ".\n",
+      scene.column.section_index, scene.column.section_min_y,
+      scene.column.cells_with_geometry, scene.column.empty_cells);
+  printf("Query + build + allocation: %.3f ms (file I/O excluded).\n", scene.mesh_ns / 1e6);
+  printf("Vertex fingerprint: %016" PRIx64 "\n", scene.vertex_fingerprint);
+#endif
   puts("A: start 3D | Plus: exit");
   bool start = false;
   while (appletMainLoop()) {

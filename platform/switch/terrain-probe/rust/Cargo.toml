@@ -14,6 +14,7 @@ libm = "=0.2.16"
 
 [features]
 textured = []
+column-mesh = ["textured"]
 
 [profile.release]
 panic = "abort"

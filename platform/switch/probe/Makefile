@@ -156,6 +156,14 @@ APP_VERSION := 0.11.0
 ROMFS := build-section-romfs
 DEFINES += -DCRAFTRUSTNX_SECTION_PREVIEW
 endif
+ifneq ($(strip $(COLUMN_MESH)),)
+TARGET := craftrustnx-column-mesh-probe
+BUILD := build-column-mesh
+APP_TITLE := CraftRustNX Rust Column Mesh Probe
+APP_VERSION := 0.12.0
+ROMFS := build-column-mesh-romfs
+DEFINES += -DCRAFTRUSTNX_COLUMN_MESH
+endif
 GRAPHICS_SHADER_DIR := ../texture-probe/shaders
 GRAPHICS_SHADER_STEM := texture
 DEFINES += -Wframe-larger-than=32768

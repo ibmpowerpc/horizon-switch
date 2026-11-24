@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 pub mod atlas;
+pub mod bank;
 pub mod geometry;
 pub mod scene_inputs;
 pub mod section;

@@ -65,3 +65,5 @@
 /platform/switch/probe/build-column-export/
 /platform/switch/probe/build-section/
 /platform/switch/probe/build-section-romfs/
+/platform/switch/probe/build-column-mesh/
+/platform/switch/probe/build-column-mesh-romfs/

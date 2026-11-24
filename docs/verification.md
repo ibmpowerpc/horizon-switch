@@ -1340,3 +1340,85 @@ FPS/timings, controls и измерения памяти в этом ответ�
 Геометрия по-прежнему запечена host Rust; on-device meshing, connected world
 renderer, biome tint/lighting, live updates и gameplay этим PASS не проверены.
 Визуальное ожидание 0.11.0 закрыто, повторная сборка/передача не нужна.
+
+## Rust Column Mesh Probe 0.12.0: подготовка и host-проверка
+
+2026-11-24 добавлен Rust `no_std` mesher за feature `column-mesh` (включает
+`textured`). Он читает выбранные 4096 raw cells из CTCOL001 напрямую и ищет
+состояния бинарным поиском в отсортированном CTBANK01. Используются shared
+snapshot header/length rules, существующие textured vertex/draw ABI и camera.
+Проверяются полный размер, metadata/reserved/strides/ranges, все template
+positions/UV, translated bounds и output capacities до первой записи.
+Query рассчитывает exact counts/bounds, build пишет в caller-owned storage;
+info72 bytes обнуляется при ошибке, buffers/tails сохраняются по контракту.
+Runtime Rust не выделяет память и не зависит от SDK/JSON/PNG.
+
+Host Rust готовит банк через уже проверенные model baker и section emitter,
+не дублируя UV/mode/triangulation math. Одинаковые per-mode templates могут
+разделять диапазоны, включая состояния листвы. Private банк содержит только
+**17** состояний выбранной секции, **372** template vertices и atlas128x128.
+Никакое число ID не трактуется как air/solid без явной записи. Missing model
+и empty section возвращают unsupported; произвольная cube/air подстановка
+не используется. Это ограничение пробы, не полный resource pack Java26.3.
+
+`section-model-bank.bin`: **75072 bytes**, SHA256
+`56a7b269c5ffaf5cff1730f1dd94e639bef7ad903cd721be96e9b2b2bd5f252c`.
+Исходный capture399408 bytes сохраняет SHA256
+`88e08eba79541afb785352261641be20d57f51d013f414e5b6e7b27ee8c9b921`;
+генерируемый mesh даёт прежние **30816 vertices / 2 draws / 876 modeled cells /
+3220 empty**, section8/Y64. Все resources/capture/bank остаются ignored.
+
+Проверки, installed Rust1.100.0/cached crates/offline/jobs1:
+
+- Host resource tool: **79 tests** all-targets и clippy `-D warnings` PASS;
+  новая независимая fixture закрепляет точный bank layout и template aliases.
+- Runtime feature: **33 tests** PASS (включая shared snapshot tests и прежние
+  camera/scene проверки), fmt/clippy all-targets PASS; feature-disabled check
+  также прошёл в дочерней задаче. Форматы, malformed/overflow/capacity/null/query
+  shape, Y/Z/X, modes/order/aliases и transactional failures покрыты fixtures.
+- `run-column-mesh-host.sh`: real C caller + actual Rust staticlib и настоящие
+  capture/bank/reference scene; query/build metadata, каждый vertex/draw byte,
+  atlas, выходные guards и ошибки malformed/missing/capacity прошли. C ASan/UBSan,
+  Rust uninstrumented. **Полное побайтовое совпадение со сценой 0.11**.
+- Независимый Python parse банка и восстановление template+cell translations
+  дали те же vertex bytes и atlas. Диагностический FNV-1a fingerprint vertex
+  bytes: **`b7ac981c4e14246d`**, совпал в Python и C/Rust прогоне; это не
+  криптографическая проверка. Ignored report: `column-bank-independent.json`
+  в `texture-probe/build/`.
+
+## Rust Column Mesh Probe 0.12.0: SDK и упаковка
+
+`bash scripts/build-switch.sh docker column-mesh`: PASS, existing image
+`devkitpro/devkita64:20260219 --pull=never --network none`. Native loader
+делает только file I/O, query/выделение caller buffer/build и GPU lifecycle.
+Он читает `section-model-bank.bin` и `column-mesh-capture.ctcol`, не готовый
+`captured-section-scene.bin`. Link map подтверждает вызов
+`craftrustnx_column_mesh` из main.o. Начальный экран показывает fingerprint
+и время query + allocation + build без file I/O и fingerprint loop.
+Actual Switch timing пока не получен.
+
+NRO title **CraftRustNX Rust Column Mesh Probe**, version **0.12.0**,
+**315765 bytes**, SHA256
+`18c160fa232fca6382d1d321e3603e8777502321779b71a25772d486cf07c057`.
+`verify_switch_artifact.py`: NRO0/ASET/NACP, ELF64 LE AArch64 DYN, no DT_TEXTREL,
+все **415** relocation targets writable. Ignored `column-mesh-artifact.json`.
+Артефакты около857 MiB, свободно17.5 GiB; compiler caches сохранены.
+
+Это host/SDK PASS, не аппаратный результат mesher. Scene controls и native
+deko3d bridge сохраняют путь 0.11, но новый CPU path на Switch требует проверки.
+Подключённый renderer/cache, biome tint/light, fluids/animation/block entities,
+occlusion culling, live updates и gameplay не добавлены; PlayerLoaded не
+отправляется. Эта итерация не меняет protocol/login behavior.
+
+## MTP-передача Rust Column Mesh 0.12.0
+
+2026-11-24 через DBI/MTP в storage0x10001 **1: SD Card**, `switch/craftrustnx`,
+записаны новые файлы: NRO0.12.0 (session object16777286), model bank (16777287),
+capture copy (16777288) и notices (16777289). Их размеры/SHA256 совпадают с
+проверенными выше; notices16338 bytes сохраняют SHA256
+`31991ba68793f056a539639b33793f465c95f7762e03e450119196695f9fb620`.
+Metadata storage/path/size и полное побайтовое обратное чтение всех четырёх
+файлов прошли. Existing files и предыдущие пробы не перезаписывались.
+Ignored report: `texture-probe/build/mtp-column-mesh-0.12.0.json`.
+Свои temporary helper/readbacks удалены. Аппаратные fingerprint, внешний вид
+и время построения mesh пока ожидаются.

@@ -11,7 +11,13 @@ Its explicitly selected section 8 (Y64..79) has been baked into a private static
 scene for Captured Section Probe 0.11.0. Host/ABI/cross-build checks pass;
 the user confirmed the captured section renders correctly on Switch Lite.
 The stages below remain the integration
-plan; on-device meshing and live world rendering are still future work.
+plan; live world rendering is still future work.
+
+The bounded 0.12.0 prototype now implements allocation-free Rust on-device
+meshing from this saved column and a compact model bank. Host C ABI output
+matches every 0.11 vertex/draw/atlas byte; SDK packaging passes. Device visual
+and timing results are pending. The bank covers only the chosen section's
+17 states; a complete resource pack and a network-fed cache are not implemented.
 
 ## First bounded deliverable: retain the actual server column
 
