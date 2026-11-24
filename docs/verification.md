@@ -1217,3 +1217,14 @@ Ignored report: `login-probe/tests/build/column-export-artifact.json`.
 decode возвращённого Switch-файла пока не выполнены. Новый live Java-мир в этой
 итерации не запускался и не подключался. Прежние проверенные NRO не заменены.
 Terrain mesh, освещение, live updates и `PlayerLoaded` не добавлялись.
+
+## MTP-передача Column Export 0.10.0
+
+2026-11-24 через DBI/MTP в storage0x10001 **1: SD Card**, `switch/craftrustnx`,
+записан новый `craftrustnx-column-export-probe-0.10.0.nro`, object16777281,
+477381 bytes, SHA256
+`8d2145712e2b56530298504e3be5e5e5a42cf57e623f40c12d70bbbea2a9c0d8`.
+Обратное чтение подтвердило полное совпадение bytes. Existing files не
+перезаписывались. Ignored report: `login-probe/tests/build/mtp-column-export-0.10.0.json`.
+Temporary helper/readback удалены. Сохранение колонки на SD и её последующее
+независимое декодирование пока ожидаются; передача NRO не считается hardware PASS.
